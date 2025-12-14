@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import './App.css';
 
-// Audio Engine
+// --- AUDIO ENGINE ---
 const SCALE = [
   130.81, 155.56, 174.61, 196.00, 233.08, 261.63, 311.13, 349.23, 392.00, 466.16,
   523.25, 622.25, 698.46, 783.99, 932.33, 1046.50
@@ -116,7 +116,7 @@ const AudioEngine = () => {
   return { initAudio, playTone, playSequence, playPop, stopAll, fadeOut, resetVolume };
 };
 
-// Generating the stars CSS
+// --- UTILITY: Generate Starfield CSS ---
 const generateStars = (count) => {
     let shadow = "";
     for (let i = 0; i < count; i++) {
@@ -128,7 +128,7 @@ const generateStars = (count) => {
     return shadow.slice(0, -1);
 };
 
-// Modify the hex codes to RGB for CSS styling
+// --- UTILITY: Color Manipulation ---
 const hexToRgb = (hex) => {
   let c;
   if(/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)){
@@ -139,10 +139,10 @@ const hexToRgb = (hex) => {
       c = '0x'+c.join('');
       return [(c>>16)&255, (c>>8)&255, c&255];
   }
-  return [100, 100, 100]; // fallback
+  return [100, 100, 100]; // Fallback
 }
 
-// Theme Menu / Pallette menu
+// --- COMPONENT: THEME PLANET MENU ---
 const ThemeMenu = ({ words, setWords }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [hex, setHex] = useState('#8daabf');
@@ -255,7 +255,7 @@ const ThemeMenu = ({ words, setWords }) => {
                                 onClick={handleCopy} 
                                 title="Copy Code"
                             >
-                                {copyFeedback ? '✓' : 'C'}
+                                {copyFeedback ? '✓' : '📋'}
                             </button>
                         </div>
                     </div>
@@ -272,7 +272,7 @@ const ThemeMenu = ({ words, setWords }) => {
                                 placeholder="Code..."
                                 className="code-input"
                             />
-                            <button className="icon-btn" onClick={handlePaste} title="Paste Code">P</button>
+                            <button className="icon-btn" onClick={handlePaste} title="Paste Code">📥</button>
                             <button className="action-btn" onClick={loadWorld} title="Load World">GO</button>
                         </div>
                     </div>
@@ -282,7 +282,7 @@ const ThemeMenu = ({ words, setWords }) => {
     );
 };
 
-// Info panel
+// --- COMPONENT: INFO PANEL ---
 const InfoPanel = () => {
     const [isOpen, setIsOpen] = useState(false);
 
@@ -290,10 +290,10 @@ const InfoPanel = () => {
         <div className="info-panel-container">
             {isOpen && (
                 <div className="info-box">
-                    <h3>orbit.jfelix.space</h3>
+                    <h3>System Info</h3>
                     <p>
-                        Create a solar system of sounds. Try clicking and right clicking on various things!<br></br>
-                        <a href="https://www.linkedin.com/in/jonathanrutan/">LinkedIn</a> || <a href="https://jfelix.space/">jfelix.space</a>
+                        This is a placeholder for future instructions, credits, or lore about the generated universe. 
+                        Currently functioning as a structural element.
                     </p>
                 </div>
             )}
@@ -307,7 +307,7 @@ const InfoPanel = () => {
     );
 };
 
-// floating words
+// --- COMPONENT: FLOATING WORD ---
 const FloatingWord = ({ wordData, assignedRadius, removeWord, playSequence, disableRandom }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isSuperBright, setIsSuperBright] = useState(false);
@@ -408,22 +408,39 @@ const FloatingWord = ({ wordData, assignedRadius, removeWord, playSequence, disa
   );
 };
 
-// intro flavor/hint text
+// --- COMPONENT: INTRO TEXT ---
 const IntroOverlay = () => {
+    const [text, setText] = useState("Type a word...");
     const [visible, setVisible] = useState(true);
 
     useEffect(() => {
-        const timer = setTimeout(() => {
+        // 1. Fade out first message
+        const fadeOut1 = setTimeout(() => {
             setVisible(false);
-        }, 5000); 
-        return () => clearTimeout(timer);
-    }, []);
+        }, 3000);
 
-    const text = "Type some words...";
+        // 2. Change text and Fade in second message
+        // CSS transition is 2s, so we wait 2s after fadeOut starts
+        const changeText = setTimeout(() => {
+            setText("Then hit enter...");
+            setVisible(true);
+        }, 5000);
+
+        // 3. Fade out second message
+        const fadeOut2 = setTimeout(() => {
+            setVisible(false);
+        }, 9000);
+
+        return () => {
+            clearTimeout(fadeOut1);
+            clearTimeout(changeText);
+            clearTimeout(fadeOut2);
+        };
+    }, []);
     
     return (
         <div className={`intro-overlay ${visible ? 'visible' : 'hidden'}`}>
-            <div className="wavy-text">
+            <div className="wavy-text" key={text}>
                 {text.split('').map((char, i) => (
                     <span key={i} style={{'--i': i}}>
                         {char === ' ' ? '\u00A0' : char}
@@ -434,7 +451,8 @@ const IntroOverlay = () => {
     );
 };
 
-// the app
+
+// --- MAIN APP ---
 export default function App() {
   const [input, setInput] = useState('');
   const [words, setWords] = useState([]);
