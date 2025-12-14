@@ -312,7 +312,8 @@ const InfoPanel = () => {
                 <div className="info-box">
                     <h3>orbit.jfelix.space</h3>
                     <p>
-                        Make pleasant, ambient sound systems by inputting words.
+                        Make pleasant, ambient sound systems by entering strings of characters. Please enjoy!<br></br>
+                        <a href="https://github.com/JonFRutan/Orbital">GitHub</a> || <a href="https://jfelix.space">jfelix.space</a> || <a href="https://www.linkedin.com/in/jonathanrutan/">LinkedIn</a>
                     </p>
                 </div>
             )}
