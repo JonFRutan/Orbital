@@ -275,7 +275,7 @@ const ThemeMenu = ({ words, setWords }) => {
                                 onClick={handleCopy} 
                                 title="Copy Code"
                             >
-                                {copyFeedback ? '✓' : '📋'}
+                                {copyFeedback ? '✓' : 'X'}
                             </button>
                         </div>
                     </div>
@@ -292,7 +292,7 @@ const ThemeMenu = ({ words, setWords }) => {
                                 placeholder="Code..."
                                 className="code-input"
                             />
-                            <button className="icon-btn" onClick={handlePaste} title="Paste Code">📥</button>
+                            <button className="icon-btn" onClick={handlePaste} title="Paste Code">C</button>
                             <button className="action-btn" onClick={loadWorld} title="Load World">GO</button>
                         </div>
                     </div>
