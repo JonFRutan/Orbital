@@ -310,10 +310,9 @@ const InfoPanel = () => {
         <div className="info-panel-container">
             {isOpen && (
                 <div className="info-box">
-                    <h3>System Info</h3>
+                    <h3>orbit.jfelix.space</h3>
                     <p>
-                        This is a placeholder for future instructions, credits, or lore about the generated universe. 
-                        Currently functioning as a structural element.
+                        Make pleasant, ambient sound systems by inputting words.
                     </p>
                 </div>
             )}
