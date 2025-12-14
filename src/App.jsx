@@ -52,8 +52,6 @@ const AudioEngine = () => {
     }
   }, []);
 
-  const getNoteIndex = (char) => char.toLowerCase().charCodeAt(0) % SCALE.length;
-
   const playTone = useCallback((char, timeOffset = 0, duration = 0.15, type = 'typing', volume = 0.1) => {
     if (!audioCtxRef.current) initAudio();
     if (!audioCtxRef.current || !masterGainRef.current) return;
@@ -65,9 +63,31 @@ const AudioEngine = () => {
 
     osc.type = 'sine';
     
-    const isUpper = char !== char.toLowerCase();
-    const baseFreq = SCALE[getNoteIndex(char)];
-    const freq = isUpper ? baseFreq * 2 : baseFreq;
+    // --- PITCH CALCULATION ---
+    const lowerChar = char.toLowerCase();
+    // Normalize 'a' to 0, 'b' to 1, etc.
+    const alphaIndex = lowerChar.charCodeAt(0) - 97; 
+    
+    // Ensure we handle non-alpha gracefully (though input limits this)
+    const safeIndex = Math.max(0, alphaIndex);
+
+    // Get index in the 16-note scale
+    const noteIndex = safeIndex % SCALE.length;
+    
+    // Calculate how many times we've wrapped around the 16-note scale (e.g., 'q' is index 16, wraps once)
+    const scaleWrapShift = Math.floor(safeIndex / SCALE.length);
+    
+    let freq = SCALE[noteIndex];
+
+    // Apply wrap shift (Octave up for letters past 'p')
+    if (scaleWrapShift > 0) {
+        freq *= Math.pow(2, scaleWrapShift);
+    }
+
+    // Apply Uppercase shift (Octave up)
+    if (char !== lowerChar) {
+        freq *= 2;
+    }
 
     osc.frequency.setValueAtTime(freq, t);
 
@@ -410,23 +430,19 @@ const FloatingWord = ({ wordData, assignedRadius, removeWord, playSequence, disa
 
 // --- COMPONENT: INTRO TEXT ---
 const IntroOverlay = () => {
-    const [text, setText] = useState("Type a word...");
+    const [text, setText] = useState("Type some words...");
     const [visible, setVisible] = useState(true);
 
     useEffect(() => {
-        // 1. Fade out first message
         const fadeOut1 = setTimeout(() => {
             setVisible(false);
         }, 3000);
 
-        // 2. Change text and Fade in second message
-        // CSS transition is 2s, so we wait 2s after fadeOut starts
         const changeText = setTimeout(() => {
-            setText("Then hit enter...");
+            setText("then hit enter...");
             setVisible(true);
         }, 5000);
 
-        // 3. Fade out second message
         const fadeOut2 = setTimeout(() => {
             setVisible(false);
         }, 9000);
