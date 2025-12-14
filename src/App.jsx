@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import './App.css';
 
-// --- AUDIO ENGINE ---
+// audio engine
 const SCALE = [
   130.81, 155.56, 174.61, 196.00, 233.08, 261.63, 311.13, 349.23, 392.00, 466.16,
   523.25, 622.25, 698.46, 783.99, 932.33, 1046.50
@@ -63,28 +63,28 @@ const AudioEngine = () => {
 
     osc.type = 'sine';
     
-    // --- PITCH CALCULATION ---
+    // pitch calculator
     const lowerChar = char.toLowerCase();
-    // Normalize 'a' to 0, 'b' to 1, etc.
+    // normalize 'a' to 0, 'b' to 1, etc.
     const alphaIndex = lowerChar.charCodeAt(0) - 97; 
     
-    // Ensure we handle non-alpha gracefully (though input limits this)
+    // ensure non-alphanumeric characters are accepted (despite the input mostly preventing that)
     const safeIndex = Math.max(0, alphaIndex);
 
-    // Get index in the 16-note scale
+    // get the index on a 16 note scale
     const noteIndex = safeIndex % SCALE.length;
     
-    // Calculate how many times we've wrapped around the 16-note scale (e.g., 'q' is index 16, wraps once)
+    // calculate the wrap arounds on the index (q is the final index, then it shifts up an octave)
     const scaleWrapShift = Math.floor(safeIndex / SCALE.length);
     
     let freq = SCALE[noteIndex];
 
-    // Apply wrap shift (Octave up for letters past 'p')
+    // apply wrap shift (p and onwards go up an octave)
     if (scaleWrapShift > 0) {
         freq *= Math.pow(2, scaleWrapShift);
     }
 
-    // Apply Uppercase shift (Octave up)
+    // uppercase letters are shifted up 2 octaves
     if (char !== lowerChar) {
         freq *= 2;
     }
@@ -136,7 +136,7 @@ const AudioEngine = () => {
   return { initAudio, playTone, playSequence, playPop, stopAll, fadeOut, resetVolume };
 };
 
-// --- UTILITY: Generate Starfield CSS ---
+// star generator
 const generateStars = (count) => {
     let shadow = "";
     for (let i = 0; i < count; i++) {
@@ -148,7 +148,7 @@ const generateStars = (count) => {
     return shadow.slice(0, -1);
 };
 
-// --- UTILITY: Color Manipulation ---
+// hex palette color generator
 const hexToRgb = (hex) => {
   let c;
   if(/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)){
@@ -159,10 +159,10 @@ const hexToRgb = (hex) => {
       c = '0x'+c.join('');
       return [(c>>16)&255, (c>>8)&255, c&255];
   }
-  return [100, 100, 100]; // Fallback
+  return [100, 100, 100]; // fallback
 }
 
-// --- COMPONENT: THEME PLANET MENU ---
+// planet menu (top left)
 const ThemeMenu = ({ words, setWords }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [hex, setHex] = useState('#8daabf');
@@ -244,7 +244,7 @@ const ThemeMenu = ({ words, setWords }) => {
             </button>
             {isOpen && (
                 <div className="theme-popout-content">
-                    {/* Color Section */}
+                    {/* color theme popout */}
                     <div className="theme-section">
                         <label>Atmosphere</label>
                         <input 
@@ -260,7 +260,7 @@ const ThemeMenu = ({ words, setWords }) => {
                     
                     <div className="theme-divider"></div>
 
-                    {/* Export Section */}
+                    {/* export base64 section */}
                     <div className="theme-section">
                         <label>Export World</label>
                         <div className="input-row">
@@ -280,7 +280,7 @@ const ThemeMenu = ({ words, setWords }) => {
                         </div>
                     </div>
 
-                    {/* Import Section */}
+                    {/* import base64 section */}
                     <div className="theme-section">
                         <label>Import World</label>
                         <div className="input-row">
@@ -302,7 +302,7 @@ const ThemeMenu = ({ words, setWords }) => {
     );
 };
 
-// --- COMPONENT: INFO PANEL ---
+// info panel (bottom left)
 const InfoPanel = () => {
     const [isOpen, setIsOpen] = useState(false);
 
@@ -327,7 +327,7 @@ const InfoPanel = () => {
     );
 };
 
-// --- COMPONENT: FLOATING WORD ---
+// floating word components
 const FloatingWord = ({ wordData, assignedRadius, removeWord, playSequence, disableRandom }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isSuperBright, setIsSuperBright] = useState(false);
@@ -428,7 +428,7 @@ const FloatingWord = ({ wordData, assignedRadius, removeWord, playSequence, disa
   );
 };
 
-// --- COMPONENT: INTRO TEXT ---
+// intro text
 const IntroOverlay = () => {
     const [text, setText] = useState("Type some words...");
     const [visible, setVisible] = useState(true);
@@ -468,7 +468,7 @@ const IntroOverlay = () => {
 };
 
 
-// --- MAIN APP ---
+// main app
 export default function App() {
   const [input, setInput] = useState('');
   const [words, setWords] = useState([]);
