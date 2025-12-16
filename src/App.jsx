@@ -246,7 +246,7 @@ const ThemeMenu = ({ words, setWords }) => {
                 <div className="theme-popout-content">
                     {/* color theme popout */}
                     <div className="theme-section">
-                        <label>Atmosphere</label>
+                        <label>Universe Palette</label>
                         <input 
                             type="text" 
                             value={hex}
@@ -343,7 +343,9 @@ const FloatingWord = ({ wordData, assignedRadius, removeWord, playSequence, disa
 
     playSequence(wordData.text, volume);
     
+    // duration calc must match the one in handlePlanetClick
     const approxDurationMS = (wordData.text.length * 150) + 500;
+    
     setTimeout(() => {
         setIsPlaying(false);
         setIsSuperBright(false);
@@ -353,6 +355,9 @@ const FloatingWord = ({ wordData, assignedRadius, removeWord, playSequence, disa
 
   useEffect(() => {
     if (wordData.forceTrigger) {
+        // force reset the ref to ensure orchestra always plays 
+        // even if a random animation was finishing
+        isPlayingRef.current = false;
         triggerPerformance(0.25, true);
     }
   }, [wordData.forceTrigger, triggerPerformance]);
@@ -517,24 +522,26 @@ export default function App() {
   const handlePlanetClick = (e) => {
     e.stopPropagation();
     
+    // immediately disable randoms so they don't fire during the fade out
+    setIsPlanetOrchestra(true);
+    
     fadeOut(1.5);
     
     setTimeout(() => {
         resetVolume();
         initAudio(); 
 
-        setIsPlanetOrchestra(true);
-        
         const sortedWords = [...words].sort((a, b) => {
             if (a.text.length === b.text.length) return a.id - b.id;
             return a.text.length - b.text.length;
         });
 
-        let totalDelay = 0;
+        let accumulatedDelay = 0;
 
-        sortedWords.forEach((word, index) => {
-            const delay = index * 400; 
-            totalDelay = delay;
+        sortedWords.forEach((word) => {
+            // calculate how long this word takes to play
+            // formula matches FloatingWord: (length * 150ms) + 100ms tail
+            const duration = (word.text.length * 150) + 100;
             
             setTimeout(() => {
                 setWords(prevWords => prevWords.map(w => {
@@ -543,12 +550,16 @@ export default function App() {
                     }
                     return w;
                 }));
-            }, delay);
+            }, accumulatedDelay);
+
+            // increment delay for the next word
+            accumulatedDelay += (duration);
         });
 
+        // re-enable random ambient sounds after the entire sequence finishes
         setTimeout(() => {
             setIsPlanetOrchestra(false);
-        }, totalDelay + 1000);
+        }, accumulatedDelay + 1000);
 
     }, 1600); 
   };
