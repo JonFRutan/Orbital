@@ -61,27 +61,52 @@ const AudioEngine = () => {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
 
-    osc.type = 'sine';
+    // determine character type
+    const isSpecial = !/^[a-zA-Z0-9]$/.test(char);
+    const isNumber = /^[0-9]$/.test(char);
+
+    // waveform selection
+    // special charactesr will use a triangle wave
+    // alphanumeric get a sine wave
+    if (isSpecial) {
+        osc.type = 'triangle';
+        volume *= 0.4;
+    } else {
+        osc.type = 'sine';
+    }
     
-    // pitch calculator
     const lowerChar = char.toLowerCase();
-    // normalize 'a' to 0, 'b' to 1, etc.
-    const alphaIndex = lowerChar.charCodeAt(0) - 97; 
+    const code = lowerChar.charCodeAt(0);
     
-    // ensure non-alphanumeric characters are accepted (despite the input mostly preventing that)
+    let alphaIndex;
+
+    if (code >= 97 && code <= 122) {
+        // a-z
+        alphaIndex = code - 97; 
+    } else if (code >= 48 && code <= 57) {
+        // 0-9
+        // We shift them to allow them to play melodically without being negative
+        alphaIndex = code; 
+    } else {
+        // specials
+        // We use the raw code, which provides a wide variance in pitch for symbols
+        alphaIndex = code;
+    }
+    
+    // normalize to 0 for safety in math
     const safeIndex = Math.max(0, alphaIndex);
 
     // get the index on a 16 note scale
     const noteIndex = safeIndex % SCALE.length;
     
-    // calculate the wrap arounds on the index (q is the final index, then it shifts up an octave)
+    // calculate the wrap arounds on the index (shifts up an octave)
     const scaleWrapShift = Math.floor(safeIndex / SCALE.length);
     
     let freq = SCALE[noteIndex];
 
-    // apply wrap shift (p and onwards go up an octave)
+    // apply wrap shift (higher ASCII codes go up octaves)
     if (scaleWrapShift > 0) {
-        freq *= Math.pow(2, scaleWrapShift);
+        freq *= Math.pow(2, scaleWrapShift % 4); // Limit octave shifts to avoid ultrasonic frequencies
     }
 
     // uppercase letters are shifted up 2 octaves
@@ -512,8 +537,10 @@ export default function App() {
       return;
     }
 
-    const isAlphabetical = /^[a-zA-Z]$/.test(e.key);
-    if (e.key.length === 1 && isAlphabetical) {
+    // Allow any single printable character
+    const isPrintable = e.key.length === 1;
+    
+    if (isPrintable) {
       playTone(e.key, 0, 0.15, 'typing', 0.2); 
       setInput((prev) => prev + e.key);
     }
