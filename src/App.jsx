@@ -53,6 +53,9 @@ const AudioEngine = () => {
   }, []);
 
   const playTone = useCallback((char, timeOffset = 0, duration = 0.15, type = 'typing', volume = 0.1) => {
+    //make periods silent for pauses
+    if (char === '.') return;
+
     if (!audioCtxRef.current) initAudio();
     if (!audioCtxRef.current || !masterGainRef.current) return;
 
@@ -131,8 +134,13 @@ const AudioEngine = () => {
     if (!audioCtxRef.current) initAudio();
     if (!audioCtxRef.current) return;
     const noteSpacing = 0.15; 
-    word.split('').forEach((char, index) => {
-      playTone(char, index * noteSpacing, 0.4, 'melody', volume);
+    
+    // handle multi-line strings for simultaneous playback
+    const lines = word.split('\n');
+    lines.forEach((line) => {
+        line.split('').forEach((char, charIndex) => {
+            playTone(char, charIndex * noteSpacing, 0.4, 'melody', volume);
+        });
     });
   }, [playTone, initAudio]);
 
@@ -338,7 +346,8 @@ const InfoPanel = () => {
                     <h3>orbit.jfelix.space</h3>
                     <p>
                         Make pleasant, ambient sound systems by entering strings of characters. Please enjoy!<br></br>
-                        <a href="https://github.com/JonFRutan/Orbital">GitHub</a> || <a href="https://jfelix.space">jfelix.space</a> || <a href="https://www.linkedin.com/in/jonathanrutan/">LinkedIn</a>
+                        <p>Right click to delete, left click to play. Shift-tab for multi-line melodies, periods (.) for pauses.</p>
+                        <a href="https://jfelix.space">jfelix.space</a> || <a href="https://www.linkedin.com/in/jonathanrutan/">LinkedIn</a>
                     </p>
                 </div>
             )}
@@ -368,8 +377,10 @@ const FloatingWord = ({ wordData, assignedRadius, removeWord, playSequence, disa
 
     playSequence(wordData.text, volume);
     
-    // duration calc must match the one in handlePlanetClick
-    const approxDurationMS = (wordData.text.length * 150) + 500;
+    // duration calc must match the longest line in the multi-line word
+    const lines = wordData.text.split('\n');
+    const longestLineLength = Math.max(...lines.map(l => l.length));
+    const approxDurationMS = (longestLineLength * 150) + 500;
     
     setTimeout(() => {
         setIsPlaying(false);
@@ -439,7 +450,13 @@ const FloatingWord = ({ wordData, assignedRadius, removeWord, playSequence, disa
                     onContextMenu={!isTrail ? handleRightClick : undefined}
                 >
                     <span className={`word-text ${isPlaying && !isTrail ? 'is-comet' : ''} ${isSuperBright ? 'super-text' : ''}`}>
-                        {wordData.text}
+                        {/* Render multiline text correctly in orbit */}
+                        {wordData.text.split('\n').map((line, i) => (
+                            <React.Fragment key={i}>
+                                {line}
+                                {i < wordData.text.split('\n').length - 1 && <br/>}
+                            </React.Fragment>
+                        ))}
                     </span>
                 </div>
             </div>
@@ -518,6 +535,14 @@ export default function App() {
 
   const handleKeyDown = (e) => {
     initAudio();
+
+    if (e.key === 'Tab' && e.shiftKey) {
+        e.preventDefault();
+        // Shift Tab for new line
+        setInput(prev => prev + '\n');
+        return;
+    }
+
     if (e.key === 'Enter') {
       if (input.trim().length > 0) {
         playSequence(input, 0.2); 
@@ -567,8 +592,10 @@ export default function App() {
 
         sortedWords.forEach((word) => {
             // calculate how long this word takes to play
-            // formula matches FloatingWord: (length * 150ms) + 100ms tail
-            const duration = (word.text.length * 150) + 100;
+            // formula matches FloatingWord: (maxLineLength * 150ms) + 100ms tail
+            const lines = word.text.split('\n');
+            const longestLineLength = Math.max(...lines.map(l => l.length));
+            const duration = (longestLineLength * 150) + 100;
             
             setTimeout(() => {
                 setWords(prevWords => prevWords.map(w => {
@@ -675,7 +702,7 @@ export default function App() {
         x: mouseX - universeXBeforeZoom * newZoom,
         y: mouseY - universeYBeforeZoom * newZoom
     });
-    setZoom(newZoom);
+    newZoom && setZoom(newZoom);
   }, [zoom, pan]);
 
 
@@ -689,8 +716,11 @@ export default function App() {
 
   const processedWords = useMemo(() => {
     const sorted = [...words].sort((a, b) => {
-        if (a.text.length === b.text.length) return a.id - b.id;
-        return a.text.length - b.text.length;
+        // use length of first line for sorting if multi-line
+        const lenA = a.text.split('\n')[0].length;
+        const lenB = b.text.split('\n')[0].length;
+        if (lenA === lenB) return a.id - b.id;
+        return lenA - lenB;
     });
 
     return sorted.map((word, index) => {
@@ -765,7 +795,12 @@ export default function App() {
         </div>
         <div className="input-zone">
             <div className="current-input">
-            {input}<span className="caret">|</span>
+            {input.split('\n').map((line, i) => (
+                <div key={i}>
+                    {line}
+                    {i === input.split('\n').length - 1 && <span className="caret">|</span>}
+                </div>
+            ))}
             </div>
         </div>
       </div>
