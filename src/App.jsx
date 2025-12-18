@@ -755,13 +755,7 @@ const Voyager = ({ onSelectSystem, currentCode, currentHex }) => {
 
 //handling mobile input, since 'tab' isn't a button we can use, we use enter instead and rely on a new send button
 const MobileInput = ({ onSend, currentInput, setInput, playTone }) => {
-    const handleKeyDown = (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            setInput(prev => prev + '\n');
-        }
-    };
-
+    
     const handleChange = (e) => {
         const newVal = e.target.value;
         

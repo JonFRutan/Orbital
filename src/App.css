@@ -669,11 +669,17 @@ body, html, #root {
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid var(--text-primary);
     color: var(--text-highlight);
-    padding: 10px;
+    padding: 12px;
     border-radius: 20px;
     font-size: 1rem;
     outline: none;
     font-family: inherit;
+    
+    resize: none;
+    overflow: hidden;
+    height: 45px;
+    box-sizing: border-box; 
+    line-height: 1.2;
 }
 
 .mobile-send-btn {
