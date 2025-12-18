@@ -629,7 +629,7 @@ const Voyager = ({ onSelectSystem, currentCode, currentHex }) => {
     const [form, setForm] = useState({ name: '', composer: '', description: '' });
 
     const fetchSystems = () => {
-        fetch('http://localhost:5000/api/systems')
+        fetch('https://orbit.jfelix.space:5000/api/systems')
             .then(res => res.json())
             .then(data => setSystems(data.reverse()))
             .catch(err => console.error("Database offline", err));
@@ -646,7 +646,7 @@ const Voyager = ({ onSelectSystem, currentCode, currentHex }) => {
         }
 
         try {
-            const response = await fetch('http://localhost:5000/api/publish', {
+            const response = await fetch('https://orbit.jfelix.space:5000/api/publish', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -841,7 +841,7 @@ export default function App() {
   //load a system from the voyager menu
   const loadFromVoyager = (system) => {
     //tell the server that a system has been clicked on to increase it's click meter
-    fetch(`http://localhost:5000/api/click/${system.id}`, { method: 'POST' });
+    fetch(`https://orbit.jfelix.space:5000/api/click/${system.id}`, { method: 'POST' });
 
     //apply the saved theme from the system
     console.log(system.hex);
