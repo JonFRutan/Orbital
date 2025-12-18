@@ -820,16 +820,21 @@ export default function App() {
   //moved into app so it can be used for both the Voyager menu and for the normal exporting/importing
   //maps all the words into a compressed format, now using LZ-String
     useEffect(() => {
-        if (words.length === 0) {
-            setGeneratedCode('');
-            return;
-        }
-        const payload = words.map(w => w.text).join('|');
-        //const payload = words.map(w => w.text); // turn map of words into one long string
-        console.log(payload)
-        const code = LZString.compressToEncodedURIComponent(payload);
-        setGeneratedCode(code);
-    }, [words]);
+      if (words.length === 0) {
+          setGeneratedCode('');
+          //clear the hash if the universe is empty
+          window.history.replaceState(null, '', window.location.pathname);
+          return;
+      }
+      const payload = words.map(w => w.text).join('|');
+      
+      const code = LZString.compressToEncodedURIComponent(payload);
+      setGeneratedCode(code);
+      
+      //automatically replace the window the new world code
+      window.history.replaceState(null, '', `#${code}`);
+      
+  }, [words]);
 
   //load a system from the voyager menu
   const loadFromVoyager = (system) => {
@@ -1171,10 +1176,12 @@ export default function App() {
       <div className="stars" style={{ boxShadow: starBoxShadow }}></div>
       <div className="stars-twinkle" style={{ boxShadow: twinklingBoxShadow }}></div>
 
-      <ThemeMenu words={words} 
-      hex={hex} setHex={setHex} 
-      currentCode={generatedCode} 
-      setWords={setWords} 
+      <ThemeMenu 
+        words={words} 
+        hex={hex} 
+        setHex={setHex} 
+        generatedCode={generatedCode}
+        setWords={setWords} 
       />
       <Voyager 
         onSelectSystem={loadFromVoyager} 
