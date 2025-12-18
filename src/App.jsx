@@ -1,7 +1,14 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import LZString from 'lz-string'
 import './App.css';
 
 // audio engine
+
+
+// C Minor Pentatonic Scale
+// a populard choice for simple scales since every not sounds good with one another.
+// pulled from:
+// https://www.scribd.com/document/454128047/Frequencies-of-Musical-Notes-pdf#:~:text=G3%20196.00%20176.,B4%20493.88%2069.9
 const SCALE = [
   130.81, 155.56, 174.61, 196.00, 233.08, 261.63, 311.13, 349.23, 392.00, 466.16,
   523.25, 622.25, 698.46, 783.99, 932.33, 1046.50
@@ -10,6 +17,7 @@ const SCALE = [
 const AudioEngine = () => {
   const audioCtxRef = useRef(null);
   const masterGainRef = useRef(null);
+  const activeNodesRef = useRef(new Map()) //map of currently active words, playing their tunes
 
   const initAudio = useCallback(() => {
     if (!audioCtxRef.current) {
@@ -39,7 +47,7 @@ const AudioEngine = () => {
     if (audioCtxRef.current && masterGainRef.current) {
         const t = audioCtxRef.current.currentTime;
         masterGainRef.current.gain.cancelScheduledValues(t);
-        masterGainRef.current.gain.setValueAtTime(1, t);
+        masterGainRef.current.gain.setValueAtTime(1, t+0.05); //slightly ramped for pop avoiding
     }
   }, []);
 
@@ -52,13 +60,11 @@ const AudioEngine = () => {
     }
   }, []);
 
-  const playTone = useCallback((char, timeOffset = 0, duration = 0.15, type = 'typing', volume = 0.1) => {
+  const playTone = useCallback((char, timeOffset = 0, wordId=null, duration = 0.15, volume = 0.1) => {
     //make periods silent for pauses
     if (char === '.') return;
-
     if (!audioCtxRef.current) initAudio();
     if (!audioCtxRef.current || !masterGainRef.current) return;
-
     const ctx = audioCtxRef.current;
     const t = ctx.currentTime + timeOffset;
     const osc = ctx.createOscillator();
@@ -72,10 +78,10 @@ const AudioEngine = () => {
     // special charactesr will use a triangle wave
     // alphanumeric get a sine wave
     if (isSpecial) {
-        osc.type = 'triangle';
+        osc.type = 'triangle'; //special
         volume *= 0.4;
     } else {
-        osc.type = 'sine';
+        osc.type = 'sine';     //alphanumeric
     }
     
     const lowerChar = char.toLowerCase();
@@ -88,11 +94,11 @@ const AudioEngine = () => {
         alphaIndex = code - 97; 
     } else if (code >= 48 && code <= 57) {
         // 0-9
-        // We shift them to allow them to play melodically without being negative
+        // we shift them to allow them to play melodically without being negative
         alphaIndex = code; 
     } else {
         // specials
-        // We use the raw code, which provides a wide variance in pitch for symbols
+        // we use the raw code, which provides a wide variance in pitch for symbols
         alphaIndex = code;
     }
     
@@ -118,7 +124,6 @@ const AudioEngine = () => {
     }
 
     osc.frequency.setValueAtTime(freq, t);
-
     gain.gain.setValueAtTime(0, t);
     gain.gain.linearRampToValueAtTime(volume, t + 0.01);
     gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
@@ -128,18 +133,59 @@ const AudioEngine = () => {
     
     osc.start(t);
     osc.stop(t + duration);
+
+    if (wordId) {
+        if (!activeNodesRef.current.has(wordId)) {
+            activeNodesRef.current.set(wordId, []);
+        }
+        const nodeGroup = { osc, gain };
+        activeNodesRef.current.get(wordId).push(nodeGroup);
+
+        //cleanup the reference once the note naturally finishes
+        setTimeout(() => {
+            const list = activeNodesRef.current.get(wordId);
+            if (list) {
+                activeNodesRef.current.set(wordId, list.filter(n => n !== nodeGroup));
+            }
+        }, (timeOffset + duration) * 1000 + 100);
+    }
   }, [initAudio]);
 
-  const playSequence = useCallback((word, volume = 0.1) => {
+  const stopWord = useCallback((wordId, fadeDuration) => {
+    const nodes = activeNodesRef.current.get(wordId);
+    if (nodes) {
+        const t = audioCtxRef.current.currentTime;
+        nodes.forEach(({osc, gain}) => {
+            const stopDelay = fadeDuration * 1000 + 50
+            const currentGain = Math.max(gain.gain.value, 0.0001)
+            //gentle volume removal
+            gain.gain.cancelScheduledValues(t);                                //essentially says "forget everything I've said up until now"
+            gain.gain.setValueAtTime(gain.gain.value, t);                      //anchors the time value to grab the current gain, to avoid any gain jumps
+            gain.gain.exponentialRampToValueAtTime(0.0001, t+fadeDuration);    //
+            //stops the oscillator, we do this AFTER the fadeout (60ms) to there's no popping
+            setTimeout(() => {
+                try {
+                    osc.stop();
+                    osc.disconnect();
+                } catch(e) {}
+            }, stopDelay);
+        });
+        // Clear the reference so we don't try to stop it again
+        activeNodesRef.current.delete(wordId);
+    }
+}, []);
+
+
+  const playSequence = useCallback((word, wordId=null, volume = 0.1) => {
     if (!audioCtxRef.current) initAudio();
     if (!audioCtxRef.current) return;
-    const noteSpacing = 0.15; 
-    
-    // handle multi-line strings for simultaneous playback
+    const noteSpacing = 0.15; //time in ms between each note of a word
+    //handle multi-line strings for simultaneous playback
     const lines = word.split('\n');
     lines.forEach((line) => {
         line.split('').forEach((char, charIndex) => {
-            playTone(char, charIndex * noteSpacing, 0.4, 'melody', volume);
+            // playTone(char, offset, wordId, duration, volume)
+            playTone(char, charIndex * noteSpacing, wordId, 0.4, volume);
         });
     });
   }, [playTone, initAudio]);
@@ -166,10 +212,10 @@ const AudioEngine = () => {
     osc.stop(t + 0.1);
   }, [initAudio]);
 
-  return { initAudio, playTone, playSequence, playPop, stopAll, fadeOut, resetVolume };
+  return { initAudio, playTone, playSequence, playPop, stopWord, stopAll, fadeOut, resetVolume };
 };
 
-// star generator
+//star generator
 const generateStars = (count) => {
     let shadow = "";
     for (let i = 0; i < count; i++) {
@@ -181,7 +227,7 @@ const generateStars = (count) => {
     return shadow.slice(0, -1);
 };
 
-// hex palette color generator
+//hex palette color generator
 const hexToRgb = (hex) => {
   let c;
   if(/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)){
@@ -202,19 +248,49 @@ const ThemeMenu = ({ words, setWords }) => {
     const [generatedCode, setGeneratedCode] = useState('');
     const [importCode, setImportCode] = useState('');
     const [copyFeedback, setCopyFeedback] = useState(false);
+    const [shareFeedback, setShareFeedback] = useState(false);
 
+    //handles shared urls by autoloading codes that come along with the URL
     useEffect(() => {
-        const payload = words.map(w => w.text);
-        const code = btoa(JSON.stringify(payload));
+        const hash = window.location.hash.substring(1); //substring(1) refers to the pieces of the URL AFTER the domain (orbit.jfelix.space/(1))
+        if (hash) {
+            try {
+                const decompressed = LZString.decompressFromEncodedURIComponent(hash);
+                if (decompressed) {
+                    const textArray = decompressed.split('|');
+                    const sharedWords = textArray.map((text, i) => ({
+                        text: text,
+                        id: Date.now() + i,
+                        orbitDuration: Math.random() * 30 + 30, 
+                        startingAngle: Math.random() * 360,
+                        forceTrigger: 0 
+                    }));
+                    setWords(sharedWords);
+                }
+            } catch (e) {
+                console.error("Failed to load shared universe", e);
+            }
+        }
+    }, [setWords]);
+
+    //maps all the words into a compressed format, now using LZ-String
+    useEffect(() => {
+        if (words.length === 0) {
+            setGeneratedCode('');
+            return;
+        }
+        const payload = words.map(w => w.text).join('|');
+        //const payload = words.map(w => w.text); // turn map of words into one long string
+        console.log(payload)
+        const code = LZString.compressToEncodedURIComponent(payload);
         setGeneratedCode(code);
     }, [words]);
 
     const loadWorld = () => {
         try {
-            const decoded = atob(importCode);
-            const textArray = JSON.parse(decoded);
-            
-            if(Array.isArray(textArray)) {
+            const decoded = LZString.decompressFromEncodedURIComponent(importCode)
+            if(decoded) {
+                const textArray =  decoded.split('|');
                 const newWords = textArray.map((text, i) => ({
                     text: text,
                     id: Date.now() + i,
@@ -230,12 +306,22 @@ const ThemeMenu = ({ words, setWords }) => {
         }
     };
 
+    //creates a shareable URL link using the domain and a generated LZ-String code
+    const handleShare = () => {
+        const shareUrl = `${window.location.origin}${window.location.pathname}#${generatedCode}`;
+        navigator.clipboard.writeText(shareUrl);
+        setShareFeedback(true);
+        setTimeout(() => setShareFeedback(false), 1000);
+    };
+
+    //puts the text from the copy box into the users clipboard
     const handleCopy = () => {
         navigator.clipboard.writeText(generatedCode);
         setCopyFeedback(true);
         setTimeout(() => setCopyFeedback(false), 1000);
     };
 
+    //pulls from users clipboard and pastes into the importcode box
     const handlePaste = async () => {
         try {
             const text = await navigator.clipboard.readText();
@@ -245,6 +331,7 @@ const ThemeMenu = ({ words, setWords }) => {
         }
     };
 
+    //changes the color palette of the universe to be calculated from the input hex code (which is converted to RGB)
     const applyTheme = (inputHex) => {
         if (!/^#[0-9A-F]{6}$/i.test(inputHex)) return;
         
@@ -290,12 +377,27 @@ const ThemeMenu = ({ words, setWords }) => {
                             className="theme-hex-input"
                         />
                     </div>
-                    
+
+                    <div className="theme-divider"></div>
+
+                    <div className="theme-section">
+                        <label>Share System</label>
+                        <div className="input-row">
+                            <button 
+                                className={`action-btn ${shareFeedback ? 'success' : ''}`} 
+                                onClick={handleShare}
+                                disabled={!generatedCode}
+                            >
+                                {shareFeedback ? 'LINK COPIED!' : 'GET SHARE LINK'}
+                            </button>
+                        </div>
+                    </div>
+
                     <div className="theme-divider"></div>
 
                     {/* export base64 section */}
                     <div className="theme-section">
-                        <label>Export World</label>
+                        <label>Export System</label>
                         <div className="input-row">
                             <input 
                                 type="text"
@@ -315,7 +417,7 @@ const ThemeMenu = ({ words, setWords }) => {
 
                     {/* import base64 section */}
                     <div className="theme-section">
-                        <label>Import World</label>
+                        <label>Import System</label>
                         <div className="input-row">
                             <input 
                                 type="text"
@@ -375,12 +477,12 @@ const FloatingWord = ({ wordData, assignedRadius, removeWord, playSequence, disa
     setIsPlaying(true);
     if(superBright) setIsSuperBright(true);
 
-    playSequence(wordData.text, volume);
+    playSequence(wordData.text, wordData.id, volume);
     
     // duration calc must match the longest line in the multi-line word
     const lines = wordData.text.split('\n');
     const longestLineLength = Math.max(...lines.map(l => l.length));
-    const approxDurationMS = (longestLineLength * 150) + 500;
+    const approxDurationMS = (longestLineLength * 150) + 500;           //approximate duration of the word length, found using the longest line, multiplied by 150ms (time for each note) plus 500 ms
     
     setTimeout(() => {
         setIsPlaying(false);
@@ -530,7 +632,7 @@ export default function App() {
   const starBoxShadow = useMemo(() => generateStars(300), []);
   const twinklingBoxShadow = useMemo(() => generateStars(100), []);
 
-  const { initAudio, playTone, playSequence, playPop, stopAll, fadeOut, resetVolume } = AudioEngine();
+  const { initAudio, playTone, playSequence, playPop, stopWord, stopAll, fadeOut, resetVolume } = AudioEngine();
   const inputRef = useRef(null);
 
   const handleKeyDown = (e) => {
@@ -538,7 +640,7 @@ export default function App() {
 
     if (e.key === 'Tab') {
         e.preventDefault();
-        // just tab for new line
+        // hit tab for new line
         setInput(prev => prev + '\n');
         return;
     }
@@ -562,23 +664,30 @@ export default function App() {
       return;
     }
 
-    // Allow any single printable character
+    // allow any single printable character
     const isPrintable = e.key.length === 1;
     
     if (isPrintable) {
-      playTone(e.key, 0, 0.15, 'typing', 0.2); 
-      setInput((prev) => prev + e.key);
+        if (e.key != '|') { //we use pipe characters for string delimiting
+            //playTone(char, timeOffset = 0, wordId=null, duration = 0.15, volume = 0.1)
+            playTone(e.key, 0, 'typing', 0.15, 0.2); 
+            setInput((prev) => prev + e.key);
+        }
     }
   };
 
+  // PLANETARY ORCHESTRA
+  // this will play every word in order starting from the innermost word (shortest) to the outermost (longest) with a tiny delay between each one
   const handlePlanetClick = (e) => {
+    if (isPlanetOrchestra) return; // so you can't just spam the planet to create a crazy amount of noise
     e.stopPropagation();
-    
     // immediately disable randoms so they don't fire during the fade out
     setIsPlanetOrchestra(true);
-    
-    fadeOut(1.5);
-    
+    // force stop every currently playing word
+    words.forEach((word) => {
+        stopWord(word.id, .3)
+    })
+    fadeOut(1.5); //silence all currently playing noises
     setTimeout(() => {
         resetVolume();
         initAudio(); 
@@ -591,8 +700,8 @@ export default function App() {
         let accumulatedDelay = 0;
 
         sortedWords.forEach((word) => {
-            // calculate how long this word takes to play
-            // formula matches FloatingWord: (maxLineLength * 150ms) + 100ms tail
+            //calculate how long this word takes to play
+            //formula matches FloatingWord: (maxLineLength * 150ms) + 100ms tail
             const lines = word.text.split('\n');
             const longestLineLength = Math.max(...lines.map(l => l.length));
             const duration = (longestLineLength * 150) + 100;
@@ -606,11 +715,11 @@ export default function App() {
                 }));
             }, accumulatedDelay);
 
-            // increment delay for the next word
+            //increment delay for the next word
             accumulatedDelay += (duration);
         });
 
-        // re-enable random ambient sounds after the entire sequence finishes
+        //re-enable random ambient sounds after the entire sequence finishes
         setTimeout(() => {
             setIsPlanetOrchestra(false);
         }, accumulatedDelay + 1000);
@@ -652,11 +761,17 @@ export default function App() {
     }, 1200);
   }, []);
 
-  const handlePlanetContextMenu = (e) => {
+  const handlePlanetRightClick = (e) => {
       e.preventDefault();
       e.stopPropagation();
       playPop(); 
       spawnParticles(e.clientX, e.clientY, 'nova');
+      //gently stop each word before we kill them
+      //this prevents lingering melodies from existing once you right click the planet
+      words.forEach((word) => {
+        console.log(word.id)
+        stopWord(word.id, .1)
+      })
       setWords([]); 
   };
 
@@ -686,7 +801,7 @@ export default function App() {
   };
 
   const handleWheel = useCallback((e) => {
-    e.preventDefault();
+    //e.preventDefault(); //this was throwing errors
     const zoomIntensity = 0.001;
     const delta = -e.deltaY * zoomIntensity;
     const newZoom = Math.min(Math.max(zoom + delta, 0.1), 4); 
@@ -707,10 +822,12 @@ export default function App() {
 
 
   const removeWord = useCallback((id, x, y, e) => {
+    //console.log(id, x, y)
     e.preventDefault();
     e.stopPropagation();
     playPop();
     spawnParticles(x, y, 'pop');
+    stopWord(id, .1)
     setWords((prev) => prev.filter(w => w.id !== id));
   }, [playPop, spawnParticles]);
 
@@ -770,7 +887,7 @@ export default function App() {
         <div 
             className="planet" 
             onClick={handlePlanetClick}
-            onContextMenu={handlePlanetContextMenu}
+            onContextMenu={handlePlanetRightClick}
         ></div>
         
         <div className="word-atmosphere">
