@@ -22,6 +22,11 @@
     --particle-color: #8daabf;
 }
 
+.montserrat {
+  font-family: "Montserrat", sans-serif;
+  font-optical-sizing: auto;
+}
+
 body, html, #root {
   margin: 0;
   padding: 0;
@@ -484,4 +489,126 @@ body, html, #root {
         opacity: 0; 
         transform: translate(-50%, -50%) rotate(var(--angle)) translateX(var(--distance)) scale(0.5); 
     } 
+}
+
+/* voyager UI */
+.voyager-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+}
+
+.voyager-toggle-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: url('/voyager.png') no-repeat center center;
+    background-size: contain;
+    border: 2px solid var(--text-primary);
+    background-color: var(--bg-base);
+    cursor: pointer;
+    transition: all 0.4s ease;
+    opacity: 0.6;
+    z-index: 1001;
+    position: relative;
+}
+
+.voyager-toggle-btn:hover, .voyager-toggle-btn.active {
+    opacity: 1;
+    transform: scale(1.1);
+    box-shadow: 0 0 15px var(--text-glow);
+}
+
+.voyager-list {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 320px;
+    height: 100vh;
+    background: rgba(5, 7, 10, 0.95);
+    border-left: 2px solid var(--text-primary);
+    box-shadow: -5px 0 20px var(--text-glow), -15px 0 50px rgba(0,0,0,0.8);
+    padding: 80px 20px 20px 20px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: slideInRight 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    box-sizing: border-box;
+}
+
+@keyframes slideInRight {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+.voyager-items-scroll {
+    flex: 1;
+    overflow-y: auto;
+    margin-top: 15px;
+    padding-right: 5px;
+}
+
+.voyager-items-scroll::-webkit-scrollbar { width: 3px; }
+.voyager-items-scroll::-webkit-scrollbar-thumb { background: var(--text-primary); }
+
+.voyager-item {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(141, 170, 191, 0.2);
+    padding: 12px;
+    margin-bottom: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.voyager-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: var(--text-primary);
+    box-shadow: 0 0 10px var(--text-glow);
+}
+
+.item-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 4px;
+}
+
+.item-header strong {
+    color: var(--text-highlight);
+    font-size: 0.9rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.item-composer {
+    font-size: 0.7rem;
+    opacity: 0.6;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.item-description {
+    font-size: 0.75rem;
+    opacity: 0.8;
+    line-height: 1.2;
+    margin-top: 4px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.planet-icon-small {
+    flex-shrink: 0;
+    filter: drop-shadow(0 0 5px var(--glow-color));
 }

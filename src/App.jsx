@@ -242,10 +242,8 @@ const hexToRgb = (hex) => {
 }
 
 // planet menu (top left)
-const ThemeMenu = ({ words, setWords }) => {
+const ThemeMenu = ({ words, hex, setHex, generatedCode, setWords }) => {
     const [isOpen, setIsOpen] = useState(false);
-    const [hex, setHex] = useState('#8daabf');
-    const [generatedCode, setGeneratedCode] = useState('');
     const [importCode, setImportCode] = useState('');
     const [copyFeedback, setCopyFeedback] = useState(false);
     const [shareFeedback, setShareFeedback] = useState(false);
@@ -272,19 +270,6 @@ const ThemeMenu = ({ words, setWords }) => {
             }
         }
     }, [setWords]);
-
-    //maps all the words into a compressed format, now using LZ-String
-    useEffect(() => {
-        if (words.length === 0) {
-            setGeneratedCode('');
-            return;
-        }
-        const payload = words.map(w => w.text).join('|');
-        //const payload = words.map(w => w.text); // turn map of words into one long string
-        console.log(payload)
-        const code = LZString.compressToEncodedURIComponent(payload);
-        setGeneratedCode(code);
-    }, [words]);
 
     const loadWorld = () => {
         try {
@@ -616,6 +601,139 @@ const IntroOverlay = () => {
     );
 };
 
+// 'voyager' is a cute term for public systems that you can click on to load.
+const Voyager = ({ onSelectSystem, currentCode, currentHex }) => {
+    const [systems, setSystems] = useState([]);
+    const [isOpen, setIsOpen] = useState(false);
+    const [isPublishing, setIsPublishing] = useState(false);
+    const [form, setForm] = useState({ name: '', composer: '', description: '' });
+
+    const fetchSystems = () => {
+        // Updated to use your local API
+        fetch('http://localhost:5000/api/systems')
+            .then(res => res.json())
+            .then(data => setSystems(data.reverse()))
+            .catch(err => console.error("Database offline", err));
+    };
+
+    useEffect(() => {
+        if (isOpen) fetchSystems();
+    }, [isOpen]);
+
+    const handlePublish = async () => {
+        if (!form.name || !form.composer) {
+            alert("Please provide a system name and composer name.");
+            return;
+        }
+
+        try {
+            const response = await fetch('http://localhost:5000/api/publish', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: form.name,
+                    composer: form.composer,
+                    desc: form.description,
+                    code: currentCode,
+                    hex: currentHex
+                })
+            });
+
+            if (response.ok) {
+                setForm({ name: '', composer: '', description: '' });
+                setIsPublishing(false);
+                fetchSystems();
+                alert("System Added to the star map.");
+            }
+        } catch (e) {
+            alert("Connection to Star Map failed.");
+        }
+    };
+
+    //render a small planet icon, using the voyager items system palette
+    const PlanetIcon = ({ color }) => (
+        <svg width="32" height="32" viewBox="0 0 32 32" className="planet-icon-small" style={{ '--glow-color': color }}>
+            <defs>
+                <radialGradient id={`grad-${color.replace('#','')}`} cx="30%" cy="30%" r="70%">
+                    <stop offset="0%" style={{ stopColor: '#ffffff', stopOpacity: 0.8 }} />
+                    <stop offset="100%" style={{ stopColor: color, stopOpacity: 1 }} />
+                </radialGradient>
+            </defs>
+            <circle cx="16" cy="16" r="12" fill={`url(#grad-${color.replace('#','')})`} />
+            <circle cx="16" cy="16" r="12" fill="transparent" stroke="rgba(255,255,255,0.2)" strokeWidth="0.5" />
+        </svg>
+    );
+
+    return (
+        <div className="voyager-container">
+            <button 
+                className={`voyager-toggle-btn ${isOpen ? 'active' : ''}`} 
+                onClick={() => setIsOpen(!isOpen)}
+                title="Star Map Portfolio"
+            />
+            {isOpen && (
+                <div className="voyager-list">
+                    <h3 style={{ fontFamily: 'Montserrat, sans-serif', textShadow: '0 0 20px var(--text-glow)', fontSize: '2em', textAlign: 'center', margin: '0 0 15px 0', letterSpacing: '4px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px' }}>VOYAGER</h3>
+                    
+                    <div className="publish-section">
+                        {!isPublishing ? (
+                            <button 
+                                className="action-btn" 
+                                style={{ width: '100%' }}
+                                onClick={() => setIsPublishing(true)}
+                                disabled={!currentCode}
+                            >
+                                PUBLISH CURRENT SYSTEM
+                            </button>
+                        ) : (
+                            <div className="publish-fields">
+                                <input 
+                                    className="theme-hex-input" 
+                                    placeholder="System Name"
+                                    value={form.name}
+                                    onChange={e => setForm({...form, name: e.target.value})}
+                                />
+                                <input 
+                                    className="theme-hex-input" 
+                                    placeholder="System Description"
+                                    value={form.description}
+                                    onChange={e => setForm({...form, description: e.target.value})}
+                                />
+                                <input 
+                                    className="theme-hex-input" 
+                                    placeholder="Composer Name"
+                                    value={form.composer}
+                                    onChange={e => setForm({...form, composer: e.target.value})}
+                                />
+                                <div className="input-row">
+                                    <button className="action-btn" onClick={handlePublish}>CONFIRM</button>
+                                    <button className="icon-btn" onClick={() => setIsPublishing(false)}>✕</button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="voyager-items-scroll">
+                        {systems.length === 0 && <p style={{opacity: 0.5, fontSize: '0.8rem'}}>Searching the stars...</p>}
+                        {systems.map(s => (
+                            <div key={s.id} className="voyager-item" onClick={() => onSelectSystem(s)}>
+                                <PlanetIcon color={s.hex || '#8daabf'} />
+                                <div className="item-content">
+                                    <div className="item-header">
+                                        <strong>{s.name}</strong>
+                                    </div>
+                                    <div className="item-composer">by {s.composer}</div>
+                                    {s.description && <div className="item-description">{s.description}</div>}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
 
 // main app
 export default function App() {
@@ -629,11 +747,71 @@ export default function App() {
   const lastMousePos = useRef({ x: 0, y: 0 });
   const containerRef = useRef(null);
 
+  const [hex, setHex] = useState('#8daabf');            //pulled from ThemeMenu
+  const [generatedCode, setGeneratedCode] = useState(''); //pulled from above App
+
   const starBoxShadow = useMemo(() => generateStars(300), []);
   const twinklingBoxShadow = useMemo(() => generateStars(100), []);
 
   const { initAudio, playTone, playSequence, playPop, stopWord, stopAll, fadeOut, resetVolume } = AudioEngine();
   const inputRef = useRef(null);
+
+  //moved into app so it can be used for both the Voyager menu and for the normal exporting/importing
+  //maps all the words into a compressed format, now using LZ-String
+    useEffect(() => {
+        if (words.length === 0) {
+            setGeneratedCode('');
+            return;
+        }
+        const payload = words.map(w => w.text).join('|');
+        //const payload = words.map(w => w.text); // turn map of words into one long string
+        console.log(payload)
+        const code = LZString.compressToEncodedURIComponent(payload);
+        setGeneratedCode(code);
+    }, [words]);
+
+  //load a system from the voyager menu
+  const loadFromVoyager = (system) => {
+    //tell the server that a system has been clicked on to increase it's click meter
+    fetch(`http://localhost:5000/api/click/${system.id}`, { method: 'POST' });
+
+    //apply the saved theme from the system
+    console.log(system.hex);
+    setHex(system.hex);
+    applyTheme(system.hex);
+
+    //decompress the words and place them into the system
+    const decoded = LZString.decompressFromEncodedURIComponent(system.code);
+    if (decoded) {
+        const textArray = decoded.split('|');
+        const newWords = textArray.map((text, i) => ({
+            text: text,
+            id: Date.now() + i,
+            orbitDuration: Math.random() * 30 + 30, 
+            startingAngle: Math.random() * 360,
+            forceTrigger: 0 
+        }));
+        setWords(newWords);
+    }
+};
+
+    //changes the color palette of the universe to be calculated from the input hex code (which is converted to RGB)
+    const applyTheme = (inputHex) => {
+        if (!/^#[0-9A-F]{6}$/i.test(inputHex)) return;
+        
+        const [r, g, b] = hexToRgb(inputHex);
+        const root = document.documentElement;
+
+        root.style.setProperty('--bg-base', `rgba(${Math.max(r-200, 5)}, ${Math.max(g-200, 5)}, ${Math.max(b-200, 10)}, 1)`);
+        root.style.setProperty('--bg-grad-1', `rgba(${r}, ${g}, ${b}, 0.1)`);
+        root.style.setProperty('--bg-grad-2', `rgba(${Math.max(r-50, 0)}, ${Math.max(g-50, 0)}, ${Math.max(b-50, 0)}, 0.2)`);
+        root.style.setProperty('--orbit-mask-inner', `rgba(${r}, ${g}, ${b}, 0.15)`);
+        root.style.setProperty('--orbit-mask-mid', `rgba(${Math.max(r-100,0)}, ${Math.max(g-100,0)}, ${Math.max(b-100,0)}, 0.4)`);
+        root.style.setProperty('--text-primary', inputHex);
+        root.style.setProperty('--text-glow', `rgba(${r}, ${g}, ${b}, 0.5)`);
+        root.style.setProperty('--text-highlight', '#ffffff'); 
+        root.style.setProperty('--particle-color', inputHex);
+    };
 
   const handleKeyDown = (e) => {
     initAudio();
@@ -881,7 +1059,16 @@ export default function App() {
       <div className="stars" style={{ boxShadow: starBoxShadow }}></div>
       <div className="stars-twinkle" style={{ boxShadow: twinklingBoxShadow }}></div>
 
-      <ThemeMenu words={words} setWords={setWords} />
+      <ThemeMenu words={words} 
+      hex={hex} setHex={setHex} 
+      currentCode={generatedCode} 
+      setWords={setWords} 
+      />
+      <Voyager 
+        onSelectSystem={loadFromVoyager} 
+        currentCode={generatedCode}
+        currentHex={hex}
+      />
       <InfoPanel />
       <IntroOverlay />
 
