@@ -14,6 +14,7 @@ const SCALE = [
   523.25, 622.25, 698.46, 783.99, 932.33, 1046.50
 ];
 
+//handles all the audio, using the browsers gain nodes and oscillator nodes
 const AudioEngine = () => {
   const audioCtxRef = useRef(null);
   const masterGainRef = useRef(null);
@@ -24,11 +25,22 @@ const AudioEngine = () => {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       const ctx = new AudioContext();
       audioCtxRef.current = ctx;
-      
+
       const master = ctx.createGain();
       master.gain.value = 1;
-      master.connect(ctx.destination);
+
+      const limiter = ctx.createDynamicsCompressor();
+      limiter.threshold.value = -1; // Only kicks in at the very top
+      limiter.knee.value = 0;       // Hard stop
+      limiter.ratio.value = 20;     // Brick wall
+      limiter.attack.value = 0;
+      limiter.release.value = 0.1;
+
+      master.connect(limiter);
+      limiter.connect(ctx.destination);
+      
       masterGainRef.current = master;
+
     } else if (audioCtxRef.current.state === 'suspended') {
       audioCtxRef.current.resume();
     }
@@ -47,7 +59,9 @@ const AudioEngine = () => {
     if (audioCtxRef.current && masterGainRef.current) {
         const t = audioCtxRef.current.currentTime;
         masterGainRef.current.gain.cancelScheduledValues(t);
-        masterGainRef.current.gain.setValueAtTime(1, t+0.05); //slightly ramped for pop avoiding
+        //start from 0 and ramp up quickly to avoid a sudden jump in volume
+        masterGainRef.current.gain.setValueAtTime(0, t); 
+        masterGainRef.current.gain.linearRampToValueAtTime(1, t+0.05); //slightly ramped for pop avoiding
     }
   }, []);
 
@@ -72,11 +86,8 @@ const AudioEngine = () => {
 
     // determine character type
     const isSpecial = !/^[a-zA-Z0-9]$/.test(char);
-    const isNumber = /^[0-9]$/.test(char);
-
+    
     // waveform selection
-    // special charactesr will use a triangle wave
-    // alphanumeric get a sine wave
     if (isSpecial) {
         osc.type = 'triangle'; //special
         volume *= 0.4;
@@ -94,45 +105,39 @@ const AudioEngine = () => {
         alphaIndex = code - 97; 
     } else if (code >= 48 && code <= 57) {
         // 0-9
-        // we shift them to allow them to play melodically without being negative
         alphaIndex = code; 
     } else {
         // specials
-        // we use the raw code, which provides a wide variance in pitch for symbols
         alphaIndex = code;
     }
     
-    // normalize to 0 for safety in math
     const safeIndex = Math.max(0, alphaIndex);
-
-    // get the index on a 16 note scale
     const noteIndex = safeIndex % SCALE.length;
-    
-    // calculate the wrap arounds on the index (shifts up an octave)
     const scaleWrapShift = Math.floor(safeIndex / SCALE.length);
     
     let freq = SCALE[noteIndex];
 
-    // apply wrap shift (higher ASCII codes go up octaves)
     if (scaleWrapShift > 0) {
-        freq *= Math.pow(2, scaleWrapShift % 4); // Limit octave shifts to avoid ultrasonic frequencies
+        freq *= Math.pow(2, scaleWrapShift % 4); 
     }
 
-    // uppercase letters are shifted up 2 octaves
     if (char !== lowerChar) {
         freq *= 2;
     }
 
     osc.frequency.setValueAtTime(freq, t);
-    gain.gain.setValueAtTime(0, t);
-    gain.gain.linearRampToValueAtTime(volume, t + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+
+    const noteVolume = volume * 0.8; 
+
+    gain.gain.setValueAtTime(0, t); 
+    gain.gain.linearRampToValueAtTime(noteVolume, t + 0.02);    
+    gain.gain.exponentialRampToValueAtTime(0.001, t + duration); 
 
     osc.connect(gain);
     gain.connect(masterGainRef.current);
     
     osc.start(t);
-    osc.stop(t + duration);
+    osc.stop(t + duration + 0.1);
 
     if (wordId) {
         if (!activeNodesRef.current.has(wordId)) {
@@ -141,13 +146,12 @@ const AudioEngine = () => {
         const nodeGroup = { osc, gain };
         activeNodesRef.current.get(wordId).push(nodeGroup);
 
-        //cleanup the reference once the note naturally finishes
         setTimeout(() => {
             const list = activeNodesRef.current.get(wordId);
             if (list) {
                 activeNodesRef.current.set(wordId, list.filter(n => n !== nodeGroup));
             }
-        }, (timeOffset + duration) * 1000 + 100);
+        }, (timeOffset + duration) * 1000 + 200);
     }
   }, [initAudio]);
 
@@ -156,35 +160,34 @@ const AudioEngine = () => {
     if (nodes) {
         const t = audioCtxRef.current.currentTime;
         nodes.forEach(({osc, gain}) => {
-            const stopDelay = fadeDuration * 1000 + 50
-            const currentGain = Math.max(gain.gain.value, 0.0001)
-            //gentle volume removal
-            gain.gain.cancelScheduledValues(t);                                //essentially says "forget everything I've said up until now"
-            gain.gain.setValueAtTime(gain.gain.value, t);                      //anchors the time value to grab the current gain, to avoid any gain jumps
-            gain.gain.exponentialRampToValueAtTime(0.0001, t+fadeDuration);    //
-            //stops the oscillator, we do this AFTER the fadeout (60ms) to there's no popping
+            const stopDelay = fadeDuration * 1000 + 200; 
+            
+            try {
+                gain.gain.cancelScheduledValues(t);                   
+                gain.gain.setValueAtTime(gain.gain.value, t);         
+                
+                gain.gain.linearRampToValueAtTime(0, t + 0.2); 
+            } catch (e) { console.warn(e) }
+            
             setTimeout(() => {
                 try {
                     osc.stop();
                     osc.disconnect();
+                    gain.disconnect(); 
                 } catch(e) {}
             }, stopDelay);
         });
-        // Clear the reference so we don't try to stop it again
         activeNodesRef.current.delete(wordId);
     }
-}, []);
-
+    }, []);
 
   const playSequence = useCallback((word, wordId=null, volume = 0.1) => {
     if (!audioCtxRef.current) initAudio();
     if (!audioCtxRef.current) return;
-    const noteSpacing = 0.15; //time in ms between each note of a word
-    //handle multi-line strings for simultaneous playback
+    const noteSpacing = 0.15; 
     const lines = word.split('\n');
     lines.forEach((line) => {
         line.split('').forEach((char, charIndex) => {
-            // playTone(char, offset, wordId, duration, volume)
             playTone(char, charIndex * noteSpacing, wordId, 0.4, volume);
         });
     });
@@ -203,7 +206,7 @@ const AudioEngine = () => {
     osc.frequency.exponentialRampToValueAtTime(1000, t + 0.05);
     
     gain.gain.setValueAtTime(0, t);
-    gain.gain.linearRampToValueAtTime(0.2, t + 0.005);
+    gain.gain.linearRampToValueAtTime(0.1, t + 0.005);
     gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
     
     osc.connect(gain);
@@ -448,38 +451,49 @@ const InfoPanel = () => {
     );
 };
 
-// floating word components
+// double-tap detector, used on mobile to replace right-clicking
+const useDoubleTap = (callback, singleTapCallback = () => {}) => {
+    const lastTap = useRef(0);
+    
+    return useCallback((e) => {
+        const now = Date.now();
+        const DOUBLE_PRESS_DELAY = 300;
+        
+        if (now - lastTap.current < DOUBLE_PRESS_DELAY) {
+            callback(e);
+            lastTap.current = 0; // reset
+        } else {
+            lastTap.current = now;
+            singleTapCallback(e);
+        }
+    }, [callback, singleTapCallback]);
+};
+
 const FloatingWord = ({ wordData, assignedRadius, removeWord, playSequence, disableRandom }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isSuperBright, setIsSuperBright] = useState(false);
   const isPlayingRef = useRef(false); 
   const elementRef = useRef(null);
 
+  // ... (keep triggerPerformance and useEffects exactly the same) ...
   const triggerPerformance = useCallback((volume, superBright = false) => {
-    if (isPlayingRef.current) return; 
-    
-    isPlayingRef.current = true;
-    setIsPlaying(true);
-    if(superBright) setIsSuperBright(true);
-
-    playSequence(wordData.text, wordData.id, volume);
-    
-    // duration calc must match the longest line in the multi-line word
-    const lines = wordData.text.split('\n');
-    const longestLineLength = Math.max(...lines.map(l => l.length));
-    const approxDurationMS = (longestLineLength * 150) + 500;           //approximate duration of the word length, found using the longest line, multiplied by 150ms (time for each note) plus 500 ms
-    
-    setTimeout(() => {
-        setIsPlaying(false);
-        setIsSuperBright(false);
-        isPlayingRef.current = false;
-    }, approxDurationMS);
+      if (isPlayingRef.current) return; 
+      isPlayingRef.current = true;
+      setIsPlaying(true);
+      if(superBright) setIsSuperBright(true);
+      playSequence(wordData.text, wordData.id, volume);
+      const lines = wordData.text.split('\n');
+      const longestLineLength = Math.max(...lines.map(l => l.length));
+      const approxDurationMS = (longestLineLength * 150) + 500;
+      setTimeout(() => {
+          setIsPlaying(false);
+          setIsSuperBright(false);
+          isPlayingRef.current = false;
+      }, approxDurationMS);
   }, [wordData.text, playSequence]);
 
   useEffect(() => {
     if (wordData.forceTrigger) {
-        // force reset the ref to ensure orchestra always plays 
-        // even if a random animation was finishing
         isPlayingRef.current = false;
         triggerPerformance(0.25, true);
     }
@@ -488,12 +502,25 @@ const FloatingWord = ({ wordData, assignedRadius, removeWord, playSequence, disa
   useEffect(() => {
     const loopInterval = Math.random() * 7000 + 5000; 
     const intervalId = setInterval(() => {
-       if (!disableRandom) {
-           triggerPerformance(0.02, false);
-       }
+       if (!disableRandom) triggerPerformance(0.02, false);
     }, loopInterval);
     return () => clearInterval(intervalId);
   }, [triggerPerformance, disableRandom]);
+
+  // double tap logic
+  const handleTap = useDoubleTap(
+      (e) => {
+        // double tapping -> delete a word
+        const rect = elementRef.current.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        removeWord(wordData.id, centerX, centerY, e);
+      },
+      () => {
+        // single tapping -> play the word
+        triggerPerformance(0.2);
+      }
+  );
 
   const handleRightClick = (e) => {
     const rect = elementRef.current.getBoundingClientRect();
@@ -505,10 +532,7 @@ const FloatingWord = ({ wordData, assignedRadius, removeWord, playSequence, disa
   const renderShell = (isTrail = false, trailIndex = 0) => {
     const trailLagDegrees = isTrail ? trailIndex * 2.5 : 0; 
     const visualStyle = isTrail 
-        ? { 
-            opacity: 0.4 - (trailIndex * 0.08), 
-            zIndex: 10 - trailIndex
-          }
+        ? { opacity: 0.4 - (trailIndex * 0.08), zIndex: 10 - trailIndex }
         : { zIndex: 20 };
 
     let activeClass = '';
@@ -526,18 +550,14 @@ const FloatingWord = ({ wordData, assignedRadius, removeWord, playSequence, disa
                 ...visualStyle
             }}
         >
-            <div 
-                className="orbit-distance"
-                style={{ '--orbit-radius': assignedRadius }}
-            >
+            <div className="orbit-distance" style={{ '--orbit-radius': assignedRadius }}>
                 <div 
                     ref={isTrail ? null : elementRef}
                     className="orbit-counter-rotator"
-                    onClick={!isTrail ? () => triggerPerformance(0.2) : undefined} 
+                    onClick={!isTrail ? handleTap : undefined} // handles 'taps' for mobile devices
                     onContextMenu={!isTrail ? handleRightClick : undefined}
                 >
                     <span className={`word-text ${isPlaying && !isTrail ? 'is-comet' : ''} ${isSuperBright ? 'super-text' : ''}`}>
-                        {/* Render multiline text correctly in orbit */}
                         {wordData.text.split('\n').map((line, i) => (
                             <React.Fragment key={i}>
                                 {line}
@@ -609,7 +629,6 @@ const Voyager = ({ onSelectSystem, currentCode, currentHex }) => {
     const [form, setForm] = useState({ name: '', composer: '', description: '' });
 
     const fetchSystems = () => {
-        // Updated to use your local API
         fetch('http://localhost:5000/api/systems')
             .then(res => res.json())
             .then(data => setSystems(data.reverse()))
@@ -734,9 +753,48 @@ const Voyager = ({ onSelectSystem, currentCode, currentHex }) => {
     );
 };
 
+//handling mobile input, since 'tab' isn't a button we can use, we use enter instead and rely on a new send button
+const MobileInput = ({ onSend, currentInput, setInput, playTone }) => {
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            setInput(prev => prev + '\n');
+        }
+    };
+
+    const handleChange = (e) => {
+        const newVal = e.target.value;
+        
+        // If we added a character (not deleting), play the tone
+        if (newVal.length > currentInput.length) {
+            const char = newVal.slice(-1);
+            // using 'typing' logic from main handler
+            playTone(char, 0, 'typing', 0.15, 0.2);
+        }
+        
+        setInput(newVal);
+    };
+
+    return (
+        <div className="mobile-input-bar">
+            <input 
+                type="text" 
+                className="mobile-text-input"
+                placeholder="Type here..."
+                value={currentInput}
+                onChange={handleChange} 
+                onKeyDown={handleKeyDown}
+            />
+            <button className="mobile-send-btn" onClick={onSend}>
+                ➤
+            </button>
+        </div>
+    );
+};
 
 // main app
 export default function App() {
+  const [isMobile, setIsMobile] = useState(false); //is the user on a mobile device?
   const [input, setInput] = useState('');
   const [words, setWords] = useState([]);
   const [particles, setParticles] = useState([]);
@@ -755,6 +813,16 @@ export default function App() {
 
   const { initAudio, playTone, playSequence, playPop, stopWord, stopAll, fadeOut, resetVolume } = AudioEngine();
   const inputRef = useRef(null);
+
+  //check for mobile on mount and resize
+  useEffect(() => {
+      const checkMobile = () => {
+          setIsMobile(window.innerWidth <= 768);
+      };
+      checkMobile();
+      window.addEventListener('resize', checkMobile);
+      return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   //moved into app so it can be used for both the Voyager menu and for the normal exporting/importing
   //maps all the words into a compressed format, now using LZ-String
@@ -814,6 +882,7 @@ export default function App() {
     };
 
   const handleKeyDown = (e) => {
+    if (isMobile) return; //if it's mobile device, DONT DO ANYTHING
     initAudio();
 
     if (e.key === 'Tab') {
@@ -864,6 +933,21 @@ export default function App() {
             setInput((prev) => prev + e.key);
         }
     }
+  };
+
+  //handles the submit button on mobile devices
+  const handleMobileSubmit = () => {
+      if (input.trim().length > 0) {
+          playSequence(input, 0.2); 
+          setWords((prev) => [...prev, {
+            text: input,
+            id: Date.now(),
+            orbitDuration: Math.random() * 30 + 30, 
+            startingAngle: Math.random() * 360,
+            forceTrigger: 0 
+          }]);
+          setInput('');
+      }
   };
 
   // PLANETARY ORCHESTRA
@@ -965,6 +1049,12 @@ export default function App() {
       setWords([]); 
   };
 
+  //handles planet tapping on mobile devices
+  const handlePlanetTap = useDoubleTap(
+    (e) => handlePlanetRightClick(e), //double tap -> delete all
+    (e) => handlePlanetClick(e)       //single tap -> orchestra
+  );
+
   const handleMouseDown = (e) => {
     if (e.target === containerRef.current || e.target.classList.contains('safe-zone-mask')) {
         setIsDragging(true);
@@ -1040,6 +1130,29 @@ export default function App() {
     });
   }, [words]);
 
+  // MOBILE TOUCHING EVENTS
+  const handleTouchStart = (e) => {
+      if (e.target === containerRef.current || e.target.classList.contains('safe-zone-mask')) {
+        setIsDragging(true);
+        const touch = e.touches[0];
+        lastMousePos.current = { x: touch.clientX, y: touch.clientY };
+      }
+  };
+
+  const handleTouchMove = (e) => {
+      if (!isDragging) return;
+      const touch = e.touches[0];
+      const deltaX = touch.clientX - lastMousePos.current.x;
+      const deltaY = touch.clientY - lastMousePos.current.y;
+      
+      setPan(prev => ({ x: prev.x + deltaX, y: prev.y + deltaY }));
+      lastMousePos.current = { x: touch.clientX, y: touch.clientY };
+  };
+
+  const handleTouchEnd = () => {
+      setIsDragging(false);
+  };
+
   const maxRadiusVal = useMemo(() => {
     if (processedWords.length === 0) return 300; 
     return processedWords[processedWords.length - 1].radiusVal + 100; 
@@ -1051,10 +1164,16 @@ export default function App() {
         ref={containerRef}
         className="zoom-container" 
         onWheel={handleWheel}
+
+        //mouse events
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
+        //mobile events
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
     >
       <div className="stars" style={{ boxShadow: starBoxShadow }}></div>
       <div className="stars-twinkle" style={{ boxShadow: twinklingBoxShadow }}></div>
@@ -1069,7 +1188,9 @@ export default function App() {
         currentCode={generatedCode}
         currentHex={hex}
       />
-      <InfoPanel />
+
+      {!isMobile && <InfoPanel />}
+
       <IntroOverlay />
 
       <div 
@@ -1085,7 +1206,7 @@ export default function App() {
 
         <div 
             className="planet" 
-            onClick={handlePlanetClick}
+            onClick={isMobile ? handlePlanetTap : handlePlanetClick} //if on mobile use planet tap, on desktop use planet click
             onContextMenu={handlePlanetRightClick}
         ></div>
         
@@ -1109,6 +1230,8 @@ export default function App() {
                 <div key={p.id} className="particle" style={{ top: p.y, left: p.x, ...p.style }} />
             ))}
         </div>
+        
+        {/* Only show the "Floating Text" visualization, not the input bar if on mobile */}
         <div className="input-zone">
             <div className="current-input">
             {input.split('\n').map((line, i) => (
@@ -1120,13 +1243,26 @@ export default function App() {
             </div>
         </div>
       </div>
-      <input 
-        ref={inputRef}
-        className="hidden-input"
-        type="text" 
-        onKeyDown={handleKeyDown} 
-        autoFocus
-      />
+      
+      {/* If Mobile: Show visible input bar at bottom.
+         If Desktop: Use hidden input with autoFocus.
+      */}
+      {isMobile ? (
+          <MobileInput 
+            currentInput={input}
+            setInput={setInput}
+            onSend={handleMobileSubmit}
+            playTone={playTone}
+          />
+      ) : (
+          <input 
+            ref={inputRef}
+            className="hidden-input"
+            type="text" 
+            onKeyDown={handleKeyDown} 
+            autoFocus
+          />
+      )}
     </div>
   );
 }

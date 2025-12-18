@@ -612,3 +612,86 @@ body, html, #root {
     flex-shrink: 0;
     filter: drop-shadow(0 0 5px var(--glow-color));
 }
+
+
+/* MOBILE FIXES */
+@media (max-width: 768px) {
+    .theme-planet-btn, .voyager-toggle-btn {
+        width: 35px !important;
+        height: 35px !important;
+        flex: 0 0 auto !important; 
+    }
+
+    .wavy-text span {
+        font-size: 2rem !important;
+    }
+    
+    .theme-popout-content {
+        width: 180px;
+    }
+
+    .voyager-list {
+        width: 85vw;
+    }
+
+    .info-panel-container {
+        display: none;
+    }
+
+    .current-input {
+        font-size: 1.5rem;
+        bottom: 12vh;
+    }
+
+    .zoom-container {
+        touch-action: none; 
+    }
+}
+
+.mobile-input-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: rgba(10, 15, 20, 0.95);
+    border-top: 1px solid var(--text-primary);
+    padding: 10px;
+    box-sizing: border-box;
+    display: flex;
+    gap: 10px;
+    z-index: 200;
+    align-items: center;
+    padding-bottom: max(10px, env(safe-area-inset-bottom)); 
+}
+
+.mobile-text-input {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--text-primary);
+    color: var(--text-highlight);
+    padding: 10px;
+    border-radius: 20px;
+    font-size: 1rem;
+    outline: none;
+    font-family: inherit;
+}
+
+.mobile-send-btn {
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    background: var(--text-primary);
+    color: var(--bg-base);
+    border: none;
+    font-weight: bold;
+    font-size: 1.2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 0 10px var(--text-glow);
+}
+
+.mobile-send-btn:active {
+    transform: scale(0.9);
+}
