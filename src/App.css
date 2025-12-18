@@ -411,18 +411,21 @@ body, html, #root {
         0 0 30px #ffffff, 
         0 0 60px var(--text-highlight),
         0 0 120px var(--text-glow) !important;
-    transform: translate(-50%, -50%) scale(1.5);
+    transform: translate(-50%, -50%) scale(1.2);
     z-index: 999;
 }
 
 .word-text { 
     display: inline-block; 
-    color: var(--text-primary); 
+    color: rgba(255, 255, 255, 0.95); 
+    text-shadow: 
+        2px 2px 0px rgba(0,0,0,0.5),
+        0 0 5px var(--text-primary);
     font-size: 1.2rem; 
-    font-weight: bold; 
+    font-weight: 800; 
     white-space: nowrap; 
-    transition: color 0.3s, text-shadow 0.3s, transform 0.2s; 
-    transform: translate(-50%, -50%); 
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+    transform: translate(-50%, -50%) scale(1); 
 }
 
 .orbit-counter-rotator:hover .word-text { 
@@ -433,15 +436,32 @@ body, html, #root {
 
 /* Comet Mode (active word) */
 .word-text.is-comet { 
-    color: var(--text-highlight); 
-    text-shadow: 0 0 20px var(--text-highlight), 0 0 40px var(--text-glow);
-    animation: wavy-motion 1s ease-in-out infinite;
+    color: #ffffff !important;
+    text-shadow: 
+        0 0 10px #ffffff,
+        0 0 30px #ffffff, 
+        0 0 60px var(--text-highlight),
+        0 0 120px var(--text-glow) !important;
+    transform: translate(-50%, -50%) scale(1.2);
+    z-index: 999;
 }
 
 @keyframes orbit-spin { from { transform: rotate(var(--start-angle)); } to { transform: rotate(calc(var(--start-angle) + 360deg)); } }
 @keyframes counter-spin { from { transform: rotate(calc(var(--start-angle) * -1)); } to { transform: rotate(calc((var(--start-angle) + 360deg) * -1)); } }
-@keyframes wavy-motion { 0%, 100% { transform: translate(-50%, -50%) translateY(0) rotate(0deg); } 25% { transform: translate(-50%, -50%) translateY(-6px) rotate(-2deg); } 50% { transform: translate(-50%, -50%) translateY(0) rotate(0deg); } 75% { transform: translate(-50%, -50%) translateY(6px) rotate(2deg); } }
-
+@keyframes wavy-motion { 
+    0%, 100% { 
+        transform: translate(-50%, -50%) scale(1.1) translateY(0) rotate(0deg); 
+    } 
+    25% { 
+        transform: translate(-50%, -50%) scale(1.1) translateY(-4px) rotate(-1deg); 
+    } 
+    50% { 
+        transform: translate(-50%, -50%) scale(1.1) translateY(0) rotate(0deg); 
+    } 
+    75% { 
+        transform: translate(-50%, -50%) scale(1.1) translateY(4px) rotate(1deg); 
+    } 
+}
 /* ui layer */
 .ui-fixed-layer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 50; }
 .input-zone { 

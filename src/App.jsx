@@ -27,14 +27,14 @@ const AudioEngine = () => {
       audioCtxRef.current = ctx;
 
       const master = ctx.createGain();
-      master.gain.value = 1;
+      master.gain.value = .6;
 
       const limiter = ctx.createDynamicsCompressor();
-      limiter.threshold.value = -1; // Only kicks in at the very top
-      limiter.knee.value = 0;       // Hard stop
-      limiter.ratio.value = 20;     // Brick wall
-      limiter.attack.value = 0;
-      limiter.release.value = 0.1;
+      limiter.threshold.value = -24; 
+      limiter.knee.value = 30;       
+      limiter.ratio.value = 12;     
+      limiter.attack.value = 0.003;
+      limiter.release.value = 0.25;
 
       master.connect(limiter);
       limiter.connect(ctx.destination);
@@ -79,6 +79,12 @@ const AudioEngine = () => {
     if (char === '.') return;
     if (!audioCtxRef.current) initAudio();
     if (!audioCtxRef.current || !masterGainRef.current) return;
+
+    // If many notes are playing, slightly reduce the volume of new notes
+    const currentActive = activeNodesRef.current.size;
+    const mixingScale = Math.max(0.4, 1 - (currentActive * 0.05)); 
+    const finalVol = volume * mixingScale;
+
     const ctx = audioCtxRef.current;
     const t = ctx.currentTime + timeOffset;
     const osc = ctx.createOscillator();
@@ -130,8 +136,8 @@ const AudioEngine = () => {
     const noteVolume = volume * 0.8; 
 
     gain.gain.setValueAtTime(0, t); 
-    gain.gain.linearRampToValueAtTime(noteVolume, t + 0.02);    
-    gain.gain.exponentialRampToValueAtTime(0.001, t + duration); 
+    gain.gain.linearRampToValueAtTime(finalVol, t + 0.02);    
+    gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
 
     osc.connect(gain);
     gain.connect(masterGainRef.current);
@@ -329,10 +335,12 @@ const ThemeMenu = ({ words, hex, setHex, generatedCode, setWords }) => {
         root.style.setProperty('--bg-base', `rgba(${Math.max(r-200, 5)}, ${Math.max(g-200, 5)}, ${Math.max(b-200, 10)}, 1)`);
         root.style.setProperty('--bg-grad-1', `rgba(${r}, ${g}, ${b}, 0.1)`);
         root.style.setProperty('--bg-grad-2', `rgba(${Math.max(r-50, 0)}, ${Math.max(g-50, 0)}, ${Math.max(b-50, 0)}, 0.2)`);
+
         root.style.setProperty('--orbit-mask-inner', `rgba(${r}, ${g}, ${b}, 0.15)`);
         root.style.setProperty('--orbit-mask-mid', `rgba(${Math.max(r-100,0)}, ${Math.max(g-100,0)}, ${Math.max(b-100,0)}, 0.4)`);
+
         root.style.setProperty('--text-primary', inputHex);
-        root.style.setProperty('--text-glow', `rgba(${r}, ${g}, ${b}, 0.5)`);
+        root.style.setProperty('--text-glow', `rgba(${r}, ${g}, ${b}, 0.6)`);
         root.style.setProperty('--text-highlight', '#ffffff'); 
         root.style.setProperty('--particle-color', inputHex);
     };
@@ -735,7 +743,10 @@ const Voyager = ({ onSelectSystem, currentCode, currentHex }) => {
                     <div className="voyager-items-scroll">
                         {systems.length === 0 && <p style={{opacity: 0.5, fontSize: '0.8rem'}}>Searching the stars...</p>}
                         {systems.map(s => (
-                            <div key={s.id} className="voyager-item" onClick={() => onSelectSystem(s)}>
+                            <div key={s.id} className="voyager-item" onClick={() => {
+                                onSelectSystem(s);
+                                setIsOpen(false); // Close menu on select
+                            }}>
                                 <PlanetIcon color={s.hex || '#8daabf'} />
                                 <div className="item-content">
                                     <div className="item-header">
@@ -804,6 +815,7 @@ export default function App() {
   const starBoxShadow = useMemo(() => generateStars(300), []);
   const twinklingBoxShadow = useMemo(() => generateStars(100), []);
 
+  const lastTouchDistance = useRef(null); //for "pinching" to zoom on mobile devices 
   const { initAudio, playTone, playSequence, playPop, stopWord, stopAll, fadeOut, resetVolume } = AudioEngine();
   const inputRef = useRef(null);
 
@@ -845,6 +857,10 @@ export default function App() {
     console.log(system.hex);
     setHex(system.hex);
     applyTheme(system.hex);
+
+    //reset zooming/frame
+    setPan({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+    setZoom(1);
 
     //decompress the words and place them into the system
     const decoded = LZString.decompressFromEncodedURIComponent(system.code);
@@ -1130,25 +1146,52 @@ export default function App() {
 
   // MOBILE TOUCHING EVENTS
   const handleTouchStart = (e) => {
-      if (e.target === containerRef.current || e.target.classList.contains('safe-zone-mask')) {
-        setIsDragging(true);
-        const touch = e.touches[0];
-        lastMousePos.current = { x: touch.clientX, y: touch.clientY };
+      // 1 finger, panning
+      if (e.touches.length === 1) {
+          if (e.target === containerRef.current || e.target.classList.contains('safe-zone-mask')) {
+            setIsDragging(true);
+            const touch = e.touches[0];
+            lastMousePos.current = { x: touch.clientX, y: touch.clientY };
+          }
+      } 
+      // 2 fingers, zooming
+      else if (e.touches.length === 2) {
+          setIsDragging(false);
+          const t1 = e.touches[0];
+          const t2 = e.touches[1];
+          const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+          lastTouchDistance.current = dist;
       }
   };
 
   const handleTouchMove = (e) => {
-      if (!isDragging) return;
-      const touch = e.touches[0];
-      const deltaX = touch.clientX - lastMousePos.current.x;
-      const deltaY = touch.clientY - lastMousePos.current.y;
-      
-      setPan(prev => ({ x: prev.x + deltaX, y: prev.y + deltaY }));
-      lastMousePos.current = { x: touch.clientX, y: touch.clientY };
+      // 1 finger, panning
+      if (e.touches.length === 1 && isDragging) {
+          const touch = e.touches[0];
+          const deltaX = touch.clientX - lastMousePos.current.x;
+          const deltaY = touch.clientY - lastMousePos.current.y;
+          setPan(prev => ({ x: prev.x + deltaX, y: prev.y + deltaY }));
+          lastMousePos.current = { x: touch.clientX, y: touch.clientY };
+      }
+      // 2 fingers, zooming
+      else if (e.touches.length === 2) {
+          const t1 = e.touches[0];
+          const t2 = e.touches[1];
+          const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+          
+          if (lastTouchDistance.current) {
+              const delta = dist - lastTouchDistance.current;
+              //sensitivity factor for touch zoom
+              const zoomFactor = delta * 0.005; 
+              setZoom(prev => Math.min(Math.max(prev + zoomFactor, 0.1), 4));
+          }
+          lastTouchDistance.current = dist;
+      }
   };
 
   const handleTouchEnd = () => {
       setIsDragging(false);
+      lastTouchDistance.current = null;
   };
 
   const maxRadiusVal = useMemo(() => {
