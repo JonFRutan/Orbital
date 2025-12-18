@@ -346,7 +346,7 @@ const InfoPanel = () => {
                     <h3>orbit.jfelix.space</h3>
                     <p>
                         Make pleasant, ambient sound systems by entering strings of characters. Please enjoy!<br></br>
-                        <p>Right click to delete, left click to play. Shift-tab for multi-line melodies, periods (.) for pauses.</p>
+                        <p>Right click to delete, left click to play. Hit tab for multi-line melodies, periods (.) for pauses.</p>
                         <a href="https://jfelix.space">jfelix.space</a> || <a href="https://www.linkedin.com/in/jonathanrutan/">LinkedIn</a>
                     </p>
                 </div>
@@ -536,9 +536,9 @@ export default function App() {
   const handleKeyDown = (e) => {
     initAudio();
 
-    if (e.key === 'Tab' && e.shiftKey) {
+    if (e.key === 'Tab') {
         e.preventDefault();
-        // Shift Tab for new line
+        // just tab for new line
         setInput(prev => prev + '\n');
         return;
     }
