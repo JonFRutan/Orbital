@@ -759,10 +759,10 @@ const MobileInput = ({ onSend, currentInput, setInput, playTone }) => {
     const handleChange = (e) => {
         const newVal = e.target.value;
         
-        // If we added a character (not deleting), play the tone
+        //if we added a character (not deleting), play the tone
         if (newVal.length > currentInput.length) {
             const char = newVal.slice(-1);
-            // using 'typing' logic from main handler
+            //using 'typing' logic from main handler
             playTone(char, 0, 'typing', 0.15, 0.2);
         }
         
@@ -771,13 +771,12 @@ const MobileInput = ({ onSend, currentInput, setInput, playTone }) => {
 
     return (
         <div className="mobile-input-bar">
-            <input 
-                type="text" 
+            <textarea 
                 className="mobile-text-input"
                 placeholder="Type here..."
                 value={currentInput}
                 onChange={handleChange} 
-                onKeyDown={handleKeyDown}
+                rows={1}
             />
             <button className="mobile-send-btn" onClick={onSend}>
                 ➤
