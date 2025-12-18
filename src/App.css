@@ -439,17 +439,25 @@ body, html, #root {
 
 /* ui layer */
 .ui-fixed-layer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 50; }
-.input-zone { position: absolute; bottom: 8vh; width: 100%; text-align: center; z-index: 20; }
+.input-zone { 
+    position: absolute; 
+    bottom: 8vh; 
+    width: 100%; 
+    text-align: center;
+    z-index: 20; 
+}
 
 .current-input { 
+    display: inline-block;
+    text-align: left;
     font-size: 3rem; 
     color: var(--text-primary);
     text-shadow: 0 0 20px var(--text-glow); 
     min-height: 4rem; 
     letter-spacing: 0.2rem; 
     transition: color 0.5s;
+    white-space: pre;
 }
-
 .caret { animation: blink 1s step-end infinite; color: var(--text-primary); margin-left: 5px; }
 @keyframes blink { 50% { opacity: 0; } }
 

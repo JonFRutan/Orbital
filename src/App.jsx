@@ -641,7 +641,19 @@ export default function App() {
     if (e.key === 'Tab') {
         e.preventDefault();
         // hit tab for new line
-        setInput(prev => prev + '\n');
+        
+        //find our current line
+        const lines = input.split('\n');
+        const currentLine = lines[lines.length - 1];
+        //index of the first character
+        const firstCharIndex = 0;
+        // find the leading amount of whitespace needed to match up the characters (keep them aligned)
+        // this finds how many spaces are at the start of the line
+        const indentSize = firstCharIndex === -1 ? 0 : firstCharIndex;
+        const indentation = " ".repeat(indentSize);
+        
+        // append a newline plus the calculated indentation
+        setInput(prev => prev + '\n' + indentation);
         return;
     }
 
