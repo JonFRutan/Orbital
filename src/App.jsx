@@ -501,7 +501,7 @@ const InfoPanel = () => {
                     <p>
                         Make pleasant, ambient sound systems by entering strings of characters. Please enjoy!<br></br>
                         <p>Right click to delete, left click to play. Hit tab for multi-line melodies, periods (.) for pauses.</p>
-                        <a href="https://portfolio.jfelix.space">jfelix.space</a> || <a href="https://www.linkedin.com/in/jonathanrutan/">LinkedIn</a>
+                        <a href="https://jfelix.space">jfelix.space</a> || <a href="https://www.linkedin.com/in/jonathanrutan/">LinkedIn</a>
                     </p>
                 </div>
             )}
