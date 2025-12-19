@@ -535,7 +535,6 @@ const FloatingWord = ({ wordData, assignedRadius, removeWord, playSequence, disa
   const isPlayingRef = useRef(false); 
   const elementRef = useRef(null);
 
-  // ... (keep triggerPerformance and useEffects exactly the same) ...
   const triggerPerformance = useCallback((volume, superBright = false) => {
       if (isPlayingRef.current) return; 
       isPlayingRef.current = true;
@@ -596,7 +595,9 @@ const FloatingWord = ({ wordData, assignedRadius, removeWord, playSequence, disa
       return tokens.map((token, i) => {
           if (token.type === 'newline') return <br key={i} />;
           if (token.type === 'pending') return null; //don't show trailing digits in floating words
-          
+          if (token.char === ' ') {
+              return <span key={i} className="char-note">{'\u00A0'}</span>;
+          }
           let className = 'char-note';
           if (token.octave < 4) className += ' octave-lowest';
           else if (token.octave < 5) className += ' octave-low';
@@ -836,13 +837,24 @@ const Voyager = ({ onSelectSystem, currentCode, currentHex }) => {
 const MobileInput = ({ onSend, currentInput, setInput, playTone }) => {
     
     const handleChange = (e) => {
-        const newVal = e.target.value;
+        let newVal = e.target.value;
+        const lastChar = newVal.slice(-1);
         
-        //if we added a character (not deleting), play the tone
         if (newVal.length > currentInput.length) {
-            const char = newVal.slice(-1);
-            //using 'typing' logic from main handler
-            playTone(char, 0, 'typing', 0.15, 0.2);
+            if (!/[0-9]/.test(lastChar)) {
+                 const secondLastChar = newVal.slice(-2, -1);
+                 let octave = null;
+                 if (/[0-9]/.test(secondLastChar)) {
+                     octave = parseInt(secondLastChar);
+                 }
+                 playTone(lastChar, 0, 'typing', 0.15, 0.2, octave);
+            }
+            if (/[0-9]/.test(lastChar)) {
+                const secondLastChar = newVal.slice(-2, -1);
+                if (/[0-9]/.test(secondLastChar)) {
+                    newVal = newVal.slice(0, -2) + lastChar;
+                }
+            }
         }
         
         setInput(newVal);
@@ -850,7 +862,7 @@ const MobileInput = ({ onSend, currentInput, setInput, playTone }) => {
 
     return (
         <div className="mobile-input-bar">
-            <textarea 
+             <textarea 
                 className="mobile-text-input"
                 placeholder="Type here..."
                 value={currentInput}
@@ -971,7 +983,6 @@ export default function App() {
     if (e.key === 'Tab') {
         e.preventDefault();
         // hit tab for new line
-        
         //find our current line
         const lines = input.split('\n');
         const currentLine = lines[lines.length - 1];
@@ -1370,7 +1381,9 @@ export default function App() {
                 if (token.type === 'pending') {
                     return <span key={i} className="pending-modifier">{token.char}</span>;
                 }
-
+                if (token.char === ' ') {
+                    return <span key={i} className="char-note">{'\u00A0'}</span>;
+                }
                 let className = 'char-note';
                 // Apply visual classes based on octave
                 if (token.octave < 5) className += ' octave-low';
@@ -1383,9 +1396,8 @@ export default function App() {
         </div>
       </div>
       
-      {/* If Mobile: Show visible input bar at bottom.
-         If Desktop: Use hidden input with autoFocus.
-      */}
+      {/* if Mobile: Show visible input bar at bottom.
+         if Desktop: Use hidden input with autoFocus. */}
       {isMobile ? (
           <MobileInput 
             currentInput={input}
