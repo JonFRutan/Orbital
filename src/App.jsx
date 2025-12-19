@@ -248,6 +248,10 @@ const AudioEngine = () => {
             playTone(token.char, timeIndex * noteSpacing, wordId, 0.4, volume, token.octave);
             timeIndex++;
         }
+        else if (token.type === 'newline') {
+            // Reset timing to 0 so the next line plays simultaneously with the first
+            timeIndex = 0;
+        }
     });
   }, [playTone, initAudio]);
 
