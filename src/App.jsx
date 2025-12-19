@@ -852,6 +852,7 @@ export default function App() {
   const loadFromVoyager = (system) => {
     //tell the server that a system has been clicked on to increase it's click meter
     fetch(`/api/click/${system.id}`, { method: 'POST' });
+    stopAll()
 
     //apply the saved theme from the system
     console.log(system.hex);
