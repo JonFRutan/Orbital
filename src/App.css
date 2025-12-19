@@ -730,16 +730,17 @@ body, html, #root {
 
 /* Lower Octaves (0-4) */
 .octave-low {
-    color: #5a6e7f; /* Darker slate */
-    text-shadow: 0 0 5px rgba(90, 110, 127, 0.5);
+    color: #ffffff; 
     font-weight: 900;
     transform: scale(1.1);
+    text-shadow: 0 0 4px rgba(255, 255, 255, 0.4);
 }
 
 .octave-lowest {
-    color: #384652; /* Very dark */
-    text-shadow: none;
+    color: #ffffff; 
     font-weight: 900;
+    text-shadow: none;
+    opacity: 0.85;
 }
 
 /* Higher Octaves (6-9)*/
