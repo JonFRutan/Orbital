@@ -721,3 +721,38 @@ body, html, #root {
 .mobile-send-btn:active {
     transform: scale(0.9);
 }
+
+/* Modifying characters for octave shift */
+.char-note {
+    display: inline-block;
+    transition: all 0.3s ease;
+}
+
+/* Lower Octaves (0-4) */
+.octave-low {
+    color: #5a6e7f; /* Darker slate */
+    text-shadow: 0 0 5px rgba(90, 110, 127, 0.5);
+    font-weight: 900;
+    transform: scale(1.1);
+}
+
+.octave-lowest {
+    color: #384652; /* Very dark */
+    text-shadow: none;
+    font-weight: 900;
+}
+
+/* Higher Octaves (6-9)*/
+.octave-high {
+    color: #dceefb;
+    text-shadow: 0 0 10px #fff, 0 0 20px var(--text-highlight);
+    font-weight: 300;
+}
+
+/* The digit waiting to be paired*/
+.pending-modifier {
+    opacity: 0.5;
+    font-size: 0.8em;
+    vertical-align: super;
+    color: var(--text-highlight);
+}

@@ -2,9 +2,52 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import LZString from 'lz-string'
 import './App.css';
 
+
+// Helper to parse "DIGIT-CHAR" format
+// returns array of { char, octave, id }
+const parseMelodyText = (text) => {
+    const tokens = [];
+    let pendingOctave = null;
+    
+    // We treat 5 as the "standard" center octave
+    const BASELINE_OCTAVE = 5;
+
+    for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        
+        //if it's a digit, it's a modifier for the NEXT inputted character
+        if (/[0-9]/.test(char)) {
+            pendingOctave = parseInt(char);
+            //if this is the last character, we must render it as a pending digit
+            if (i === text.length - 1) {
+                tokens.push({ type: 'pending', char: char });
+            }
+            continue;
+        }
+
+        //if newline (from tab or enter, desktop and mobile respectively)
+        if (char === '\n') {
+            tokens.push({ type: 'newline' });
+            pendingOctave = null;
+            continue;
+        }
+
+        //normal character
+        tokens.push({ 
+            type: 'note', 
+            char: char, 
+            octave: pendingOctave !== null ? pendingOctave : BASELINE_OCTAVE 
+        });
+        
+        //reset modifier after applied character
+        pendingOctave = null;
+    }
+    return tokens;
+};
+
+
+
 // audio engine
-
-
 // C Minor Pentatonic Scale
 // a populard choice for simple scales since every not sounds good with one another.
 // pulled from:
@@ -74,7 +117,7 @@ const AudioEngine = () => {
     }
   }, []);
 
-  const playTone = useCallback((char, timeOffset = 0, wordId=null, duration = 0.15, volume = 0.1) => {
+  const playTone = useCallback((char, timeOffset = 0, wordId=null, duration = 0.15, volume = 0.1, octaveOverride = null) => {
     //make periods silent for pauses
     if (char === '.') return;
     if (!audioCtxRef.current) initAudio();
@@ -92,7 +135,6 @@ const AudioEngine = () => {
 
     // determine character type
     const isSpecial = !/^[a-zA-Z0-9]$/.test(char);
-    
     // waveform selection
     if (isSpecial) {
         osc.type = 'triangle'; //special
@@ -119,16 +161,22 @@ const AudioEngine = () => {
     
     const safeIndex = Math.max(0, alphaIndex);
     const noteIndex = safeIndex % SCALE.length;
-    const scaleWrapShift = Math.floor(safeIndex / SCALE.length);
     
     let freq = SCALE[noteIndex];
 
-    if (scaleWrapShift > 0) {
-        freq *= Math.pow(2, scaleWrapShift % 4); 
-    }
+    //scale wrap shift, so Z is higher than A
+    const scaleWrapShift = Math.floor(safeIndex / SCALE.length);
+    if (scaleWrapShift > 0) freq *= Math.pow(2, scaleWrapShift % 4);
 
     if (char !== lowerChar) {
         freq *= 2;
+    }
+
+    //octave override if we preface our input with a number
+    if (octaveOverride !== null) {
+        const baseline = 5;
+        const shift = octaveOverride - baseline;
+        freq *= Math.pow(2, shift);
     }
 
     osc.frequency.setValueAtTime(freq, t);
@@ -190,12 +238,16 @@ const AudioEngine = () => {
   const playSequence = useCallback((word, wordId=null, volume = 0.1) => {
     if (!audioCtxRef.current) initAudio();
     if (!audioCtxRef.current) return;
+    
+    const tokens = parseMelodyText(word); //using parser to find octave shifts
     const noteSpacing = 0.15; 
-    const lines = word.split('\n');
-    lines.forEach((line) => {
-        line.split('').forEach((char, charIndex) => {
-            playTone(char, charIndex * noteSpacing, wordId, 0.4, volume);
-        });
+    let timeIndex = 0;
+
+    tokens.forEach((token) => {
+        if (token.type === 'note') {
+            playTone(token.char, timeIndex * noteSpacing, wordId, 0.4, volume, token.octave);
+            timeIndex++;
+        }
     });
   }, [playTone, initAudio]);
 
@@ -537,6 +589,27 @@ const FloatingWord = ({ wordData, assignedRadius, removeWord, playSequence, disa
     removeWord(wordData.id, centerX, centerY, e);
   };
 
+  //render the content before the shell, this uses parseing so we can visually modify octave shifted notes
+  const renderContent = () => {
+      const tokens = parseMelodyText(wordData.text);
+      
+      return tokens.map((token, i) => {
+          if (token.type === 'newline') return <br key={i} />;
+          if (token.type === 'pending') return null; //don't show trailing digits in floating words
+          
+          let className = 'char-note';
+          if (token.octave < 4) className += ' octave-lowest';
+          else if (token.octave < 5) className += ' octave-low';
+          else if (token.octave > 6) className += ' octave-high';
+          
+          return (
+              <span key={i} className={className}>
+                  {token.char}
+              </span>
+          );
+      });
+  };
+
   const renderShell = (isTrail = false, trailIndex = 0) => {
     const trailLagDegrees = isTrail ? trailIndex * 2.5 : 0; 
     const visualStyle = isTrail 
@@ -566,12 +639,7 @@ const FloatingWord = ({ wordData, assignedRadius, removeWord, playSequence, disa
                     onContextMenu={!isTrail ? handleRightClick : undefined}
                 >
                     <span className={`word-text ${isPlaying && !isTrail ? 'is-comet' : ''} ${isSuperBright ? 'super-text' : ''}`}>
-                        {wordData.text.split('\n').map((line, i) => (
-                            <React.Fragment key={i}>
-                                {line}
-                                {i < wordData.text.split('\n').length - 1 && <br/>}
-                            </React.Fragment>
-                        ))}
+                        {renderContent()}
                     </span>
                 </div>
             </div>
@@ -942,10 +1010,27 @@ export default function App() {
     const isPrintable = e.key.length === 1;
     
     if (isPrintable) {
-        if (e.key != '|') { //we use pipe characters for string delimiting
-            //playTone(char, timeOffset = 0, wordId=null, duration = 0.15, volume = 0.1)
-            playTone(e.key, 0, 'typing', 0.15, 0.2); 
-            setInput((prev) => prev + e.key);
+        //we use pipe characters for string delimiting, so ignore those
+        if (e.key != '|') { 
+            if (/[0-9]/.test(e.key)) {
+                setInput((prev) => {
+                    //check if the current input already ends with a digit
+                    if (prev.length > 0 && /[0-9]/.test(prev.slice(-1))) {
+                        //remove the previous digit and replace it with the new one
+                        return prev.slice(0, -1) + e.key;
+                    }
+                    //otherwise just put it back in
+                    return prev + e.key;
+                });
+            } else {
+                const lastChar = input.slice(-1);
+                 let octave = null;
+                 if (/[0-9]/.test(lastChar)) {
+                     octave = parseInt(lastChar);
+                 }
+                 playTone(e.key, 0, 'typing', 0.15, 0.2, octave); 
+                 setInput((prev) => prev + e.key);
+            }
         }
     }
   };
@@ -1278,12 +1363,22 @@ export default function App() {
         {/* Only show the "Floating Text" visualization, not the input bar if on mobile */}
         <div className="input-zone">
             <div className="current-input">
-            {input.split('\n').map((line, i) => (
-                <div key={i}>
-                    {line}
-                    {i === input.split('\n').length - 1 && <span className="caret">|</span>}
-                </div>
-            ))}
+            {/* Use the parser for the input display */}
+            {parseMelodyText(input).map((token, i) => {
+                if (token.type === 'newline') return <div key={i} style={{flexBasis:'100%', height:0}}></div>;
+                
+                if (token.type === 'pending') {
+                    return <span key={i} className="pending-modifier">{token.char}</span>;
+                }
+
+                let className = 'char-note';
+                // Apply visual classes based on octave
+                if (token.octave < 5) className += ' octave-low';
+                if (token.octave > 6) className += ' octave-high';
+
+                return <span key={i} className={className}>{token.char}</span>;
+            })}
+            <span className="caret">|</span>
             </div>
         </div>
       </div>
